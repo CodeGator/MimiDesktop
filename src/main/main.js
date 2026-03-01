@@ -223,7 +223,7 @@ function createTray() {
     Menu.buildFromTemplate([
       { label: 'Show ' + APP_NAME, click: () => mainWindow?.show?.() && mainWindow.focus() },
       { type: 'separator' },
-      { label: 'Help', submenu: [{ label: 'Using Mimi Desktop ...', click: () => openHelpWindow() }, { label: 'Terms of Service', click: () => openTermsWindow() }, { label: 'Privacy', click: () => openPrivacyWindow() }, { type: 'separator' }, { label: 'About', click: () => showAboutDialog() }] },
+      { label: 'Help', submenu: [{ label: 'Welcome ...', click: () => openHelpWindow() }, { label: 'Terms of Service', click: () => openTermsWindow() }, { label: 'Privacy', click: () => openPrivacyWindow() }, { type: 'separator' }, { label: 'About', click: () => showAboutDialog() }] },
       { type: 'separator' },
       { label: 'Quit', click: () => app.quit() },
     ])
@@ -384,7 +384,7 @@ function setApplicationMenu() {
       label: 'Help',
       submenu: [
         {
-          label: 'Using Mimi Desktop',
+          label: 'Welcome',
           click: () => openHelpWindow(),
         },
         {
