@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none';">
+  <title>Mimi Desktop</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+    <main>
+      <section id="unlockScreen" class="screen">
+        <p class="unlock-screen-description"><strong>Mimi Desktop</strong> is a secret keeper. All data is stored and encrypted locally. No data is ever copied to the cloud, or shared with any other computer.</p>
+        <div class="unlock-card">
+          <h2 id="unlockTitle">Unlock</h2>
+          <p class="unlock-hint" id="unlockHint">Enter your master password to open Mimi Desktop.</p>
+          <form id="unlockForm">
+            <div class="password-field">
+              <input type="password" id="masterPassword" placeholder="Master password" autocomplete="off" required>
+              <button type="button" id="toggleMasterPassword" class="btn btn-ghost btn-eye" title="Show password" aria-label="Show password">
+                <svg class="icon-eye" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                <svg class="icon-eye-off" hidden xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+              </button>
+            </div>
+            <div id="unlockError" class="error" role="alert" hidden></div>
+            <p id="unlockPasswordStrength" class="password-strength" hidden role="status"></p>
+            <p id="unlockPasteWarning" class="unlock-paste-warning" hidden role="status">For better security, prefer typing your password instead of pasting.</p>
+            <button type="submit" id="btnUnlock" class="btn btn-primary btn-block">Unlock</button>
+          </form>
+          <p class="unlock-footer" id="unlockFooter"></p>
+        </div>
+      </section>
+
+      <section id="vaultScreen" class="screen" hidden>
+        <div class="tabs" role="tablist" aria-label="Notes, Logins and Options">
+          <button type="button" id="tabNotes" class="tab" role="tab" aria-selected="true" aria-controls="panelNotes" data-tab="notes">
+            <svg class="tab-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            Notes
+          </button>
+          <button type="button" id="tabLogins" class="tab" role="tab" aria-selected="false" aria-controls="panelLogins" data-tab="logins">
+            <svg class="tab-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            Logins
+          </button>
+          <button type="button" id="tabOptions" class="tab" role="tab" aria-selected="false" aria-controls="panelOptions" data-tab="options">
+            <svg class="tab-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            Options
+          </button>
+        </div>
+        <div id="panelNotes" class="tab-panel" role="tabpanel" aria-labelledby="tabNotes">
+          <div class="notes-toolbar">
+            <div class="notes-toolbar-row notes-toolbar-actions">
+              <button type="button" class="btn btn-primary btn-icon" id="btnNewNote" title="New note" aria-label="New note">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              </button>
+              <button type="button" id="btnImportNotes" class="btn btn-primary btn-icon" title="Import notes" aria-label="Import notes">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              </button>
+              <button type="button" id="btnExportNotes" class="btn btn-primary btn-icon" disabled title="Export selected" aria-label="Export selected">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              </button>
+              <button type="button" id="btnPrintNotes" class="btn btn-primary btn-icon" disabled title="Print selected" aria-label="Print selected">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+              </button>
+              <button type="button" id="btnDeleteSelectedNotes" class="btn btn-danger btn-icon" disabled title="Delete selected" aria-label="Delete selected">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+              </button>
+            </div>
+            <div class="notes-toolbar-row notes-toolbar-filter">
+              <input type="search" id="searchNotes" placeholder="Search notes..." class="search-input" aria-label="Search notes">
+              <label for="notesSort" class="sort-label">Sort</label>
+              <select id="notesSort" class="sort-select" aria-label="Sort notes">
+                <option value="name-asc">Name (A–Z)</option>
+                <option value="name-desc">Name (Z–A)</option>
+                <option value="updated-desc">Newest first</option>
+                <option value="updated-asc">Oldest first</option>
+              </select>
+              <span class="secret-count" id="notesCount">0 notes</span>
+              <span id="notesSelectActions" class="select-actions">
+                <button type="button" id="btnNotesSelectAll" class="btn btn-ghost btn-icon btn-sm" title="Select all" aria-label="Select all">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                </button>
+                <button type="button" id="btnNotesUnselectAll" class="btn btn-ghost btn-icon btn-sm" title="Unselect all" aria-label="Unselect all">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/></svg>
+                </button>
+              </span>
+            </div>
+          </div>
+          <ul id="notesList" class="secret-list" role="list"></ul>
+          <div id="emptyNotes" class="empty-state" hidden>
+            <p>No notes yet.</p>
+          </div>
+          <div id="notesPagination" class="pagination" hidden>
+            <div class="pagination-controls">
+              <label for="notesPageSize" class="pagination-label">Page size</label>
+              <select id="notesPageSize" class="pagination-select" aria-label="Notes per page">
+                <option value="10" selected>10</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+              </select>
+              <span id="notesPageInfo" class="pagination-info"></span>
+              <button type="button" id="notesPrevPage" class="btn btn-ghost btn-sm">Previous</button>
+              <button type="button" id="notesNextPage" class="btn btn-ghost btn-sm">Next</button>
+            </div>
+          </div>
+        </div>
+        <div id="panelLogins" class="tab-panel" role="tabpanel" aria-labelledby="tabLogins" hidden>
+          <div class="logins-toolbar">
+            <div class="logins-toolbar-row logins-toolbar-actions">
+              <button type="button" class="btn btn-primary btn-icon" id="btnNewLogin" title="New login" aria-label="New login">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              </button>
+              <button type="button" id="btnImportLogins" class="btn btn-primary btn-icon" title="Import logins" aria-label="Import logins">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              </button>
+              <button type="button" id="btnExportLogins" class="btn btn-primary btn-icon" disabled title="Export selected" aria-label="Export selected">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              </button>
+              <button type="button" id="btnPrintLogins" class="btn btn-primary btn-icon" disabled title="Print selected" aria-label="Print selected">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+              </button>
+              <button type="button" id="btnDeleteSelectedLogins" class="btn btn-danger btn-icon" disabled title="Delete selected" aria-label="Delete selected">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+              </button>
+            </div>
+            <div class="logins-toolbar-row logins-toolbar-filter">
+              <input type="search" id="searchLogins" placeholder="Search logins..." class="search-input" aria-label="Search logins">
+              <label for="loginsSort" class="sort-label">Sort</label>
+              <select id="loginsSort" class="sort-select" aria-label="Sort logins">
+                <option value="name-asc">Name (A–Z)</option>
+                <option value="name-desc">Name (Z–A)</option>
+                <option value="updated-desc">Newest first</option>
+                <option value="updated-asc">Oldest first</option>
+              </select>
+              <span class="secret-count" id="loginsCount">0 logins</span>
+              <span id="loginsSelectActions" class="select-actions">
+                <button type="button" id="btnLoginsSelectAll" class="btn btn-ghost btn-icon btn-sm" title="Select all" aria-label="Select all">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                </button>
+                <button type="button" id="btnLoginsUnselectAll" class="btn btn-ghost btn-icon btn-sm" title="Unselect all" aria-label="Unselect all">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/></svg>
+                </button>
+              </span>
+            </div>
+          </div>
+          <ul id="loginsList" class="secret-list" role="list"></ul>
+          <div id="emptyLogins" class="empty-state" hidden>
+            <p>No logins yet.</p>
+          </div>
+          <div id="loginsPagination" class="pagination" hidden>
+            <div class="pagination-controls">
+              <label for="loginsPageSize" class="pagination-label">Page size</label>
+              <select id="loginsPageSize" class="pagination-select" aria-label="Logins per page">
+                <option value="10" selected>10</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+              </select>
+              <span id="loginsPageInfo" class="pagination-info"></span>
+              <button type="button" id="loginsPrevPage" class="btn btn-ghost btn-sm">Previous</button>
+              <button type="button" id="loginsNextPage" class="btn btn-ghost btn-sm">Next</button>
+            </div>
+          </div>
+        </div>
+        <div id="panelOptions" class="tab-panel options-panel" role="tabpanel" aria-labelledby="tabOptions" hidden>
+          <div class="options-content">
+            <div class="theme-section">
+              <h3 class="options-section-title">Theme</h3>
+              <div class="theme-options">
+                <button type="button" id="btnThemeLight" class="btn btn-ghost btn-theme" data-theme="light">Light</button>
+                <button type="button" id="btnThemeDark" class="btn btn-ghost btn-theme" data-theme="dark">Dark</button>
+              </div>
+            </div>
+            <div class="data-location-section">
+              <h3 class="options-section-title">Data location</h3>
+              <p class="data-path-display" id="dataPathDisplay">—</p>
+              <button type="button" id="btnBrowseDataLocation" class="btn btn-ghost btn-option">Browse</button>
+            </div>
+            <div class="export-security-section">
+              <h3 class="options-section-title">Export file security</h3>
+              <p class="options-note">Export files (logins/notes) are not encrypted by default. Save only to a trusted location and delete after use. Do not store in cloud or shared folders. You can add optional password protection when exporting.</p>
+            </div>
+            <div class="backup-section">
+              <h3 class="options-section-title">Backup / Restore</h3>
+              <p class="options-note">Store backups only on trusted, non-shared storage. Do not put backup files in cloud sync folders.</p>
+              <p id="backupStatus" class="backup-status" hidden></p>
+              <button type="button" id="btnBackupData" class="btn btn-ghost btn-option">Backup data</button>
+              <button type="button" id="btnRestoreBackup" class="btn btn-ghost btn-option btn-restore">Restore from backup</button>
+            </div>
+            <div class="password-section">
+              <h3 class="options-section-title">Password</h3>
+              <p class="options-note">The vault can lock automatically after a period of inactivity.</p>
+              <div class="form-group options-inline">
+                <label for="idleLockMinutes">Lock after</label>
+                <select id="idleLockMinutes" class="options-select" aria-label="Auto-lock after inactivity">
+                  <option value="5">5 minutes</option>
+                  <option value="10" selected>10 minutes</option>
+                  <option value="15">15 minutes</option>
+                  <option value="30">30 minutes</option>
+                  <option value="0">Never</option>
+                </select>
+              </div>
+              <button type="button" id="btnChangeMasterPassword" class="btn btn-ghost btn-option">Change master password</button>
+            </div>
+            <div class="options-list">
+              <div class="danger-area">
+                <h3 class="danger-area-title">Danger area!</h3>
+                <button type="button" id="btnDeleteAll" class="btn btn-ghost btn-option btn-danger">Delete all data</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="secretDialog" class="dialog" aria-labelledby="dialogTitle">
+    <div class="dialog-content">
+      <h2 id="dialogTitle">New secret</h2>
+      <form id="secretForm">
+        <input type="hidden" id="secretId">
+        <input type="hidden" id="secretType">
+        <div class="form-group">
+          <label for="secretName">Name</label>
+          <input type="text" id="secretName" required placeholder="e.g. Gmail">
+        </div>
+        <div class="form-group" id="groupUrl">
+          <label for="secretUrl">URL / Website</label>
+          <input type="url" id="secretUrl" placeholder="https://example.com" autocomplete="url">
+        </div>
+        <div class="form-group" id="groupUsername">
+          <label for="secretUsername">Username / Email</label>
+          <input type="text" id="secretUsername" placeholder="Optional">
+        </div>
+        <div class="form-group" id="groupPassword">
+          <label for="secretPassword">Password</label>
+          <div class="password-field">
+            <input type="password" id="secretPassword" placeholder="Optional">
+            <button type="button" id="togglePassword" class="btn btn-ghost btn-eye" title="Show password" aria-label="Show password">
+              <svg class="icon-eye" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              <svg class="icon-eye-off" hidden xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+            </button>
+            <button type="button" id="copyPassword" class="btn btn-ghost btn-icon" title="Copy password" aria-label="Copy password">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="form-group" id="groupComments">
+          <label for="secretComments">Comments</label>
+          <textarea id="secretComments" rows="3" placeholder="Optional notes about this login"></textarea>
+        </div>
+        <div class="form-group" id="groupNote">
+          <label for="secretNote">Note</label>
+          <textarea id="secretNote" rows="4" placeholder="Secure note content"></textarea>
+        </div>
+        <div id="secretError" class="error" role="alert" hidden></div>
+        <div class="dialog-actions">
+          <button type="button" id="btnCancelSecret" class="btn btn-ghost">Cancel</button>
+          <button type="submit" id="btnSaveSecret" class="btn btn-primary">Save</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
+  <dialog id="deleteAllDialog" class="dialog dialog-danger" aria-labelledby="deleteAllDialogTitle">
+    <div class="dialog-content">
+      <div class="dialog-icon dialog-icon-warning" aria-hidden="true">
+        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      </div>
+      <h2 id="deleteAllDialogTitle">Delete all data</h2>
+      <p class="dialog-message">This will permanently delete your master password and all notes and logins. This cannot be undone.</p>
+      <div class="form-group">
+        <label for="deleteConfirmPhrase">Type <strong>delete everything</strong> to confirm</label>
+        <input type="text" id="deleteConfirmPhrase" placeholder="delete everything" autocomplete="off">
+      </div>
+      <div class="dialog-actions">
+        <button type="button" id="btnCancelDeleteAll" class="btn btn-ghost">Cancel</button>
+        <button type="button" id="btnConfirmDeleteAll" class="btn btn-danger" disabled>Delete everything</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="changePasswordDialog" class="dialog" aria-labelledby="changePasswordTitle">
+    <div class="dialog-content">
+      <h2 id="changePasswordTitle">Change master password</h2>
+      <form id="changePasswordForm">
+        <div class="form-group">
+          <label for="currentMasterPassword">Current password</label>
+          <div class="password-field">
+            <input type="password" id="currentMasterPassword" placeholder="Current master password" autocomplete="off" required>
+            <button type="button" id="toggleCurrentMasterPassword" class="btn btn-ghost btn-eye" title="Show password" aria-label="Show password">
+              <svg class="icon-eye" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              <svg class="icon-eye-off" hidden xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="newMasterPassword">New password</label>
+          <div class="password-field">
+            <input type="password" id="newMasterPassword" placeholder="New master password" autocomplete="off" required minlength="8">
+            <button type="button" id="toggleNewMasterPassword" class="btn btn-ghost btn-eye" title="Show password" aria-label="Show password">
+              <svg class="icon-eye" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              <svg class="icon-eye-off" hidden xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+            </button>
+          </div>
+          <p id="newPasswordStrength" class="password-strength" role="status"></p>
+        </div>
+        <div class="form-group">
+          <label for="confirmMasterPassword">Confirm new password</label>
+          <div class="password-field">
+            <input type="password" id="confirmMasterPassword" placeholder="Confirm new password" autocomplete="off" required minlength="8">
+            <button type="button" id="toggleConfirmMasterPassword" class="btn btn-ghost btn-eye" title="Show password" aria-label="Show password">
+              <svg class="icon-eye" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              <svg class="icon-eye-off" hidden xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+            </button>
+          </div>
+        </div>
+        <div id="changePasswordError" class="error" role="alert" hidden></div>
+        <div class="dialog-actions">
+          <button type="button" id="btnCancelChangePassword" class="btn btn-ghost">Cancel</button>
+          <button type="submit" id="btnSubmitChangePassword" class="btn btn-primary">Change master password</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
+  <dialog id="confirmRestoreDialog" class="dialog dialog-confirm" aria-labelledby="confirmRestoreDialogTitle">
+    <div class="dialog-content">
+      <div class="dialog-icon dialog-icon-warning" aria-hidden="true">
+        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+      </div>
+      <h2 id="confirmRestoreDialogTitle">Restore from backup</h2>
+      <p id="confirmRestoreMessage" class="dialog-message">Restoring from a backup will overwrite your current vault data. This action cannot be undone. Do you want to continue?</p>
+      <div class="dialog-actions">
+        <button type="button" id="btnCancelConfirmRestore" class="btn btn-ghost">Cancel</button>
+        <button type="button" id="btnConfirmRestore" class="btn btn-danger">Restore</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="confirmDeleteDialog" class="dialog dialog-confirm" aria-labelledby="confirmDeleteDialogTitle">
+    <div class="dialog-content">
+      <div class="dialog-icon dialog-icon-warning" aria-hidden="true">
+        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+      </div>
+      <h2 id="confirmDeleteDialogTitle">Delete secret</h2>
+      <p id="confirmDeleteMessage" class="dialog-message">Are you sure you want to delete this?</p>
+      <div class="dialog-actions">
+        <button type="button" id="btnCancelConfirmDelete" class="btn btn-ghost">Cancel</button>
+        <button type="button" id="btnConfirmDelete" class="btn btn-danger">Delete</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="exportPasswordDialog" class="dialog" aria-labelledby="exportPasswordDialogTitle">
+    <div class="dialog-content">
+      <h2 id="exportPasswordDialogTitle">Optional password protection</h2>
+      <p class="dialog-message">Add a password to encrypt the export file. Leave blank to export unencrypted (less secure if the file is stolen).</p>
+      <div class="form-group">
+        <label for="exportPasswordInput">Export password (optional)</label>
+        <div class="password-field">
+          <input type="password" id="exportPasswordInput" placeholder="Leave blank for unencrypted export" autocomplete="new-password">
+          <button type="button" id="toggleExportPassword" class="btn btn-ghost btn-eye" title="Show password" aria-label="Show password">
+            <svg class="icon-eye" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            <svg class="icon-eye-off" hidden xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" id="btnCancelExportPassword" class="btn btn-ghost">Cancel</button>
+        <button type="button" id="btnConfirmExportPassword" class="btn btn-primary">Export</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="exportWarningDialog" class="dialog dialog-confirm" aria-labelledby="exportWarningDialogTitle">
+    <div class="dialog-content">
+      <div class="dialog-icon dialog-icon-warning" aria-hidden="true">
+        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      </div>
+      <h2 id="exportWarningDialogTitle">Export not secure</h2>
+      <p class="dialog-message">Export files are <strong>not encrypted</strong> by default. Save only to a trusted location and <strong>delete after use</strong>. Do not store in cloud or shared folders.</p>
+      <p class="dialog-message">You can optionally add password protection when exporting for extra security.</p>
+      <div class="dialog-actions">
+        <button type="button" id="btnCancelExportWarning" class="btn btn-ghost">Cancel</button>
+        <button type="button" id="btnConfirmExportWarning" class="btn btn-primary">Continue</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="importPasswordDialog" class="dialog" aria-labelledby="importPasswordDialogTitle">
+    <div class="dialog-content">
+      <h2 id="importPasswordDialogTitle">Password required</h2>
+      <p id="importPasswordDialogMessage" class="dialog-message">This export file is password protected. Enter the password to import.</p>
+      <div class="form-group">
+        <label for="importPasswordInput">Export password</label>
+        <div class="password-field">
+          <input type="password" id="importPasswordInput" placeholder="Enter export password" autocomplete="off">
+          <button type="button" id="toggleImportPassword" class="btn btn-ghost btn-eye" title="Show password" aria-label="Show password">
+            <svg class="icon-eye" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            <svg class="icon-eye-off" hidden xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+          </button>
+        </div>
+      </div>
+      <div id="importPasswordError" class="error" role="alert" hidden></div>
+      <div class="dialog-actions">
+        <button type="button" id="btnCancelImportPassword" class="btn btn-ghost">Cancel</button>
+        <button type="button" id="btnConfirmImportPassword" class="btn btn-primary">Import</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="importTypeMismatchDialog" class="dialog dialog-confirm" aria-labelledby="importTypeMismatchDialogTitle">
+    <div class="dialog-content">
+      <div class="dialog-icon dialog-icon-warning" aria-hidden="true">
+        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      </div>
+      <h2 id="importTypeMismatchDialogTitle">Wrong file type</h2>
+      <p id="importTypeMismatchMessage" class="dialog-message"></p>
+      <div class="dialog-actions">
+        <button type="button" id="btnCloseImportTypeMismatch" class="btn btn-primary">OK</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="importConflictDialog" class="dialog dialog-confirm" aria-labelledby="importConflictDialogTitle">
+    <div class="dialog-content">
+      <h2 id="importConflictDialogTitle">Merge with existing logins</h2>
+      <p class="dialog-message">These logins already exist. Choose which to merge (imported data fills in empty fields).</p>
+      <ul id="importConflictList" class="import-conflict-list" role="list"></ul>
+      <div class="dialog-actions">
+        <button type="button" id="btnCancelImportConflict" class="btn btn-ghost">Cancel</button>
+        <button type="button" id="btnApplyImportConflict" class="btn btn-primary">Merge selected</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="importNoteConflictDialog" class="dialog dialog-confirm" aria-labelledby="importNoteConflictDialogTitle">
+    <div class="dialog-content">
+      <h2 id="importNoteConflictDialogTitle">Merge with existing notes</h2>
+      <p class="dialog-message">These notes already exist. Choose which to merge (imported content fills in empty fields or appends).</p>
+      <ul id="importNoteConflictList" class="import-conflict-list" role="list"></ul>
+      <div class="dialog-actions">
+        <button type="button" id="btnCancelImportNoteConflict" class="btn btn-ghost">Cancel</button>
+        <button type="button" id="btnApplyImportNoteConflict" class="btn btn-primary">Merge selected</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="aboutDialog" class="dialog dialog-about" aria-labelledby="aboutDialogTitle">
+    <div class="dialog-content">
+      <div class="about-header">
+        <img id="aboutIcon" class="about-icon" src="" alt="" hidden>
+        <div>
+          <h2 id="aboutDialogTitle">Mimi Desktop</h2>
+          <p id="aboutVersion" class="about-version"></p>
+        </div>
+      </div>
+      <p id="aboutCopyright" class="about-copyright"></p>
+      <div class="dialog-actions">
+        <button type="button" id="btnCloseAbout" class="btn btn-primary">OK</button>
+      </div>
+    </div>
+  </dialog>
+
+  <div id="printLoginsContainer" class="print-only" hidden aria-hidden="true"></div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>

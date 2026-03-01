@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+  <title>Mimi Desktop Help</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="help.css">
+</head>
+<body class="help-page">
+  <div class="help-content">
+    <h1 class="help-title">Mimi Desktop Help</h1>
+    <p class="help-intro">This window explains the main interface and how to use each part of the app.</p>
+
+    <section class="help-section">
+      <h2>Unlock screen</h2>
+      <p>When the app is locked or you have not yet created a vault, you see the <strong>unlock screen</strong>.</p>
+      <ul>
+        <li><strong>Description</strong> — A short line explaining that Mimi Desktop is a local secret keeper; data is encrypted and never sent to the cloud.</li>
+        <li><strong>Master password</strong> — Enter the password you chose when setting up the vault. Use the eye icon to show or hide the password.</li>
+        <li><strong>Unlock / Create password</strong> — If you already have a vault, the button says <em>Unlock</em>; if not, it says <em>Create password</em> and creates a new encrypted vault. The title and hint text change accordingly.</li>
+        <li><strong>Footer</strong> — Reminds you to type your password (avoid pasting on shared computers) and that the password cannot be recovered if forgotten.</li>
+      </ul>
+    </section>
+
+    <section class="help-section">
+      <h2>Vault: tabs</h2>
+      <p>After unlocking, the <strong>vault</strong> has three tabs at the top:</p>
+      <ul>
+        <li><strong>Notes</strong> — Secure notes (name + content).</li>
+        <li><strong>Logins</strong> — Saved logins (name, URL, username, password, comments).</li>
+        <li><strong>Options</strong> — Theme, data location, backup/restore, password settings, and danger zone.</li>
+      </ul>
+      <p>Click a tab to switch. Only one tab is visible at a time.</p>
+    </section>
+
+    <section class="help-section">
+      <h2>Notes tab</h2>
+      <p>Manage your secure notes.</p>
+      <ul>
+        <li><strong>Toolbar (first row)</strong> — <em>New note</em> (plus icon), <em>Import notes</em>, <em>Export selected</em>, <em>Print selected</em>, <em>Delete selected</em>. Export, print, and delete are enabled only when you have selected one or more notes.</li>
+        <li><strong>Filter row</strong> — Search box to filter by name or content; <em>Sort</em> dropdown (name A–Z, Z–A, newest/oldest first); count of notes; <em>Select all</em> / <em>Unselect all</em> when you need to export, print, or delete multiple items.</li>
+        <li><strong>List</strong> — Each note shows its name and type. Click a row to edit, or use the <em>Edit</em> (pencil) and <em>Delete</em> (trash) buttons on the right. Check the box on the left to include it in “selected” for export/print/delete.</li>
+        <li><strong>Pagination</strong> — If there are many notes, use page size, Previous, and Next to move through pages.</li>
+      </ul>
+    </section>
+
+    <section class="help-section">
+      <h2>Logins tab</h2>
+      <p>Manage saved logins (passwords and related info).</p>
+      <ul>
+        <li><strong>Toolbar (first row)</strong> — <em>New login</em>, <em>Import logins</em>, <em>Export selected</em>, <em>Print selected</em>, <em>Delete selected</em>. Same idea as Notes: select items first to enable export/print/delete.</li>
+        <li><strong>Filter row</strong> — Search, sort, count, and select all / unselect all, same as Notes.</li>
+        <li><strong>List</strong> — Each login shows name and username (or type). Click a row to edit. Use <em>Copy</em> (copy password to clipboard), <em>Edit</em>, and <em>Delete</em>. Check the box to select for export/print/delete.</li>
+        <li><strong>Pagination</strong> — Same as Notes when the list is long.</li>
+      </ul>
+    </section>
+
+    <section class="help-section">
+      <h2>Options tab</h2>
+      <p>App settings and data management.</p>
+      <ul>
+        <li><strong>Theme</strong> — Switch between <em>Light</em> and <em>Dark</em>. The choice is saved.</li>
+        <li><strong>Data location</strong> — Shows where the encrypted vault file is stored. Use <em>Browse</em> to choose a different folder (e.g. a USB drive). Changing it affects where new data is saved; existing data is not moved automatically.</li>
+        <li><strong>Export file security</strong> — Reminder that exported files are not encrypted by default; you can add a password when exporting. Keep exports in a trusted place and delete after use.</li>
+        <li><strong>Backup / Restore</strong> — <em>Backup data</em> creates a zip of your vault and config in a backups folder. <em>Restore from backup</em> lets you pick a backup file and overwrites current data after confirmation. Use only on trusted storage.</li>
+        <li><strong>Password</strong> — <em>Lock after</em> sets how many minutes of inactivity before the app locks. <em>Change master password</em> opens a dialog to set a new password (you must enter the current one).</li>
+        <li><strong>Danger area</strong> — <em>Delete all data</em> permanently removes the master password and all notes and logins. You must type “delete everything” to confirm. This cannot be undone.</li>
+      </ul>
+    </section>
+
+    <section class="help-section">
+      <h2>Menus</h2>
+      <p>At the top of the window (or in the system menu bar on macOS):</p>
+      <ul>
+        <li><strong>File</strong> — <em>Lock</em> locks the vault and returns you to the unlock screen. <em>Unlock</em> brings the window to the front and focuses the password field if the unlock screen is visible. <em>Exit</em> quits the app.</li>
+        <li><strong>Help</strong> — <em>Mimi Desktop Help</em> opens this window. <em>About</em> shows app name, version, and copyright.</li>
+      </ul>
+    </section>
+  </div>
+</body>
+</html>

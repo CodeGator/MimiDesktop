@@ -1,0 +1,63 @@
+{
+  "name": "mimi-desktop",
+  "version": "1.0.0",
+  "description": "Encrypted local password and note storage",
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "npm run icon:256 && npm run icon:ico && electron-builder",
+    "installer": "electron-builder --win",
+    "icon:2x": "node scripts/resize-icon-2x.js",
+    "icon:256": "node scripts/resize-icon-256.js",
+    "icon:ico": "node scripts/png-to-ico.js",
+    "release:hashes": "node scripts/release-hashes.js"
+  },
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1",
+    "sharp": "^0.33.5",
+    "png-to-ico": "^3.0.1"
+  },
+  "build": {
+    "appId": "com.codegator.mimidesktop",
+    "productName": "Mimi Desktop",
+    "icon": "build/nd0021/nd0021-256.png",
+    "win": {
+      "icon": "build/nd0021/nd0021-256.png",
+      "sign": null,
+      "signAndEditExecutable": true,
+      "target": [{ "target": "nsis", "arch": ["x64"] }]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "build/nd0021/nd0021.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Mimi Desktop"
+    },
+    "directories": {
+      "output": "dist"
+    },
+    "extraResources": [
+      {
+        "from": "assets/",
+        "to": "assets/",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "build/nd0021",
+        "to": "build/nd0021",
+        "filter": ["**/*"]
+      }
+    ]
+  },
+  "dependencies": {
+    "archiver": "^7.0.1",
+    "extract-zip": "^2.0.1"
+  }
+}
