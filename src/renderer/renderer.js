@@ -659,6 +659,77 @@
     secretDialog.showModal();
   }
 
+  // --- Password generator (login popup) ---
+  const UPPER = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const LOWER = 'abcdefghijklmnopqrstuvwxyz';
+  const NUMBERS = '0123456789';
+  const SYMBOLS = '!@#$%^&*()_+-=[]{}|;:,.<>?';
+
+  function generateRandomPassword(length, useUpper, useLower, useNumbers, useSymbols) {
+    let pool = '';
+    if (useUpper) pool += UPPER;
+    if (useLower) pool += LOWER;
+    if (useNumbers) pool += NUMBERS;
+    if (useSymbols) pool += SYMBOLS;
+    if (pool.length === 0) return '';
+    const arr = new Uint32Array(length);
+    crypto.getRandomValues(arr);
+    let result = '';
+    for (let i = 0; i < length; i++) {
+      result += pool[arr[i] % pool.length];
+    }
+    return result;
+  }
+
+  function updateGeneratorPreview() {
+    const length = Math.max(4, Math.min(30, parseInt($('generatorLength').value, 10) || 16));
+    const useUpper = $('generatorUppercase').checked;
+    const useLower = $('generatorLowercase').checked;
+    const useNumbers = $('generatorNumbers').checked;
+    const useSymbols = $('generatorSymbols').checked;
+    if (!useUpper && !useLower && !useNumbers && !useSymbols) {
+      $('generatorPreview').value = '';
+      return;
+    }
+    const password = generateRandomPassword(length, useUpper, useLower, useNumbers, useSymbols);
+    $('generatorPreview').value = password;
+  }
+
+  function openPasswordGenerator() {
+    const lenEl = $('generatorLength');
+    const lenValEl = $('generatorLengthValue');
+    if (lenValEl) lenValEl.textContent = lenEl?.value ?? 16;
+    $('generatorUppercase').checked = true;
+    $('generatorLowercase').checked = true;
+    $('generatorNumbers').checked = true;
+    $('generatorSymbols').checked = true;
+    $('passwordGeneratorDialog').showModal();
+    updateGeneratorPreview();
+  }
+
+  function applyGeneratedPassword() {
+    const password = $('generatorPreview').value;
+    if (!password) return;
+    secretPassword.value = password;
+    secretPassword.type = 'text';
+    const eye = togglePassword.querySelector('.icon-eye');
+    const eyeOff = togglePassword.querySelector('.icon-eye-off');
+    if (eye) eye.hidden = true;
+    if (eyeOff) eyeOff.hidden = false;
+    togglePassword.setAttribute('aria-label', 'Hide password');
+    togglePassword.setAttribute('title', 'Hide password');
+    $('passwordGeneratorDialog').close();
+  }
+
+  function ensureOneGeneratorCheckbox() {
+    const u = $('generatorUppercase');
+    const l = $('generatorLowercase');
+    const n = $('generatorNumbers');
+    const s = $('generatorSymbols');
+    if (u?.checked || l?.checked || n?.checked || s?.checked) return;
+    u.checked = true;
+  }
+
   // --- Delete: single secret or bulk (logins/notes) ---
   let pendingDeleteSecret = null;
   let pendingDeleteLoginIds = null;
@@ -1134,6 +1205,187 @@
     $('importNoteConflictDialog')?.close();
   }
 
+  // --- LastPass CSV import (Convert section) ---
+  /** Parse CSV line respecting double-quoted fields (commas inside quotes stay). */
+  function parseCsvLine(line) {
+    const out = [];
+    let cur = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (c === '"') {
+        inQuotes = !inQuotes;
+      } else if (c === ',') {
+        if (inQuotes) {
+          cur += c;
+        } else {
+          out.push(cur.trim());
+          cur = '';
+        }
+      } else {
+        cur += c;
+      }
+    }
+    out.push(cur.trim());
+    return out;
+  }
+
+  /**
+   * Parse LastPass CSV into { logins }. Only logins are imported; secure notes (url "http://sn") are skipped.
+   * LastPass formats: url,username,password,extra,name,grouping,fav [legacy]
+   * or url,username,password,totp,extra,name,grouping,fav [new].
+   */
+  function parseLastPassCsv(content) {
+    const logins = [];
+    const raw = (content || '').replace(/^\uFEFF/, ''); // strip BOM
+    const lines = raw.split(/\r?\n/).filter((l) => l.trim());
+    if (lines.length < 2) return { logins };
+
+    const header = parseCsvLine(lines[0]).map((h) => (h || '').toLowerCase());
+    const idxOf = (name) => header.findIndex((h) => h === name);
+    const totpPos = idxOf('totp');
+    const extraCol = idxOf('extra') >= 0 ? idxOf('extra') : (idxOf('notes') >= 0 ? idxOf('notes') : (totpPos === 3 ? 4 : 3));
+    const nameCol = idxOf('name') >= 0 ? idxOf('name') : (idxOf('title') >= 0 ? idxOf('title') : (totpPos === 3 ? 5 : 4));
+
+    const get = (row, idx) => (idx >= 0 && row[idx] != null ? String(row[idx]).trim() : '');
+
+    for (let i = 1; i < lines.length; i++) {
+      const row = parseCsvLine(lines[i]);
+      if (row.length < 3) continue;
+      const url = get(row, 0);
+      const isSecureNote = !url || url.toLowerCase() === 'http://sn';
+      if (isSecureNote) continue; // skip secure notes; only import logins
+      const username = get(row, 1);
+      const password = get(row, 2);
+      const extra = get(row, extraCol);
+      const csvName = get(row, nameCol);
+      const name = csvName || url || 'Imported';
+      logins.push({ name, url, username, password, comments: extra });
+    }
+    return { logins };
+  }
+
+  let pendingLastPass = null; // { newLogins, loginConflicts }
+
+  function openLastPassConflictDialog() {
+    const listEl = $('lastPassConflictList');
+    const msgEl = $('lastPassConflictMessage');
+    if (!listEl) return;
+    listEl.innerHTML = '';
+    const { loginConflicts } = pendingLastPass;
+    msgEl.textContent = `${loginConflicts.length} conflicting entr${loginConflicts.length === 1 ? 'y' : 'ies'} found. Choose to ignore (keep existing) or overwrite with imported data for each.`;
+    loginConflicts.forEach(({ imported, existing }) => {
+      const li = document.createElement('li');
+      li.className = 'import-conflict-item';
+      const idPrefix = `lastpass-login-${existing.id}`;
+      li.innerHTML = `
+        <div class="lastpass-conflict-row">
+          <span class="import-conflict-name">${escapeHtml(imported.name)}</span>
+          ${imported.url ? `<span class="import-conflict-meta">${escapeHtml(imported.url)}</span>` : ''}
+          <span class="lastpass-conflict-type">Login</span>
+          <label><input type="radio" name="${idPrefix}" value="ignore" checked> Ignore</label>
+          <label><input type="radio" name="${idPrefix}" value="overwrite"> Overwrite</label>
+        </div>
+      `;
+      li.dataset.type = 'login';
+      li.dataset.existingId = existing.id;
+      listEl.appendChild(li);
+    });
+    $('lastPassConflictDialog').showModal();
+  }
+
+  function getLastPassConflictChoices() {
+    const listEl = $('lastPassConflictList');
+    const choices = []; // { type, existingId, action: 'ignore'|'overwrite' }
+    listEl?.querySelectorAll('.import-conflict-item').forEach((li) => {
+      const type = li.dataset.type;
+      const existingId = li.dataset.existingId;
+      const checked = li.querySelector('input[type="radio"]:checked');
+      choices.push({ type, existingId, action: checked?.value === 'overwrite' ? 'overwrite' : 'ignore' });
+    });
+    return choices;
+  }
+
+  function setAllLastPassConflictChoices(action) {
+    $('lastPassConflictList')?.querySelectorAll('input[type="radio"]').forEach((radio) => {
+      radio.checked = radio.value === action;
+    });
+  }
+
+  async function applyLastPassImport() {
+    if (!pendingLastPass) return;
+    const { newLogins, loginConflicts } = pendingLastPass;
+    const choices = getLastPassConflictChoices();
+    try {
+      for (const login of newLogins) {
+        await window.vault.createSecret({
+          name: login.name,
+          type: 'password',
+          url: login.url || '',
+          username: login.username || '',
+          password: login.password || '',
+          comments: login.comments || '',
+        });
+      }
+      for (const { imported, existing } of loginConflicts) {
+        const choice = choices.find((c) => c.type === 'login' && c.existingId === existing.id);
+        if (choice?.action === 'overwrite') {
+          await window.vault.updateSecret(existing.id, {
+            name: imported.name,
+            url: imported.url || '',
+            username: imported.username || '',
+            password: imported.password || '',
+            comments: imported.comments || '',
+          });
+        }
+      }
+      await loadSecrets();
+      showError(unlockError, '');
+      if (newLogins.length > 0 || choices.some((c) => c.action === 'overwrite')) {
+        setTab('logins');
+      }
+    } catch (err) {
+      showError(unlockError, err.message || 'Import failed');
+    } finally {
+      pendingLastPass = null;
+      $('lastPassConflictDialog')?.close();
+    }
+  }
+
+  async function importFromLastPassCsv() {
+    showError(unlockError, '');
+    try {
+      const result = await window.vault.selectAndReadLastPassCsv();
+      if (!result.success) {
+        if (result.error && result.error !== 'No file selected') {
+          showError(unlockError, result.error);
+        }
+        return;
+      }
+      const { logins } = parseLastPassCsv(result.content);
+      if (logins.length === 0) {
+        showError(unlockError, 'No logins found in the CSV file. (Secure notes are not imported.)');
+        return;
+      }
+      const newLogins = [];
+      const loginConflicts = [];
+      for (const login of logins) {
+        const existing = findExistingLogin(login);
+        if (existing) loginConflicts.push({ imported: login, existing });
+        else newLogins.push(login);
+      }
+      const hasConflicts = loginConflicts.length > 0;
+      pendingLastPass = { newLogins, loginConflicts };
+      if (hasConflicts) {
+        openLastPassConflictDialog();
+      } else {
+        await applyLastPassImport();
+      }
+    } catch (err) {
+      showError(unlockError, err.message || 'Import failed');
+    }
+  }
+
   async function saveSecret(e) {
     e.preventDefault();
     showError(secretError, '');
@@ -1351,6 +1603,14 @@
   }
   $('btnCancelConfirmRestore').addEventListener('click', () => confirmRestoreDialog.close());
   $('btnConfirmRestore').addEventListener('click', doConfirmRestore);
+  $('btnImportLastPassCsv').addEventListener('click', () => importFromLastPassCsv());
+  $('btnLastPassIgnoreAll').addEventListener('click', () => setAllLastPassConflictChoices('ignore'));
+  $('btnLastPassOverwriteAll').addEventListener('click', () => setAllLastPassConflictChoices('overwrite'));
+  $('btnCancelLastPassConflict').addEventListener('click', () => {
+    pendingLastPass = null;
+    $('lastPassConflictDialog').close();
+  });
+  $('btnApplyLastPassConflict').addEventListener('click', () => applyLastPassImport());
   btnChangeMasterPassword.addEventListener('click', () => openChangePassword());
   const CONFIRM_PHRASE = 'delete everything';
   function openDeleteAllDialog() {
@@ -1503,7 +1763,25 @@
   });
   secretForm.addEventListener('submit', saveSecret);
   btnCancelSecret.addEventListener('click', () => secretDialog.close());
+  $('btnGeneratePassword').addEventListener('click', openPasswordGenerator);
+  $('generatorLength').addEventListener('input', () => {
+    const slider = $('generatorLength');
+    const val = slider.value;
+    const el = $('generatorLengthValue');
+    if (el) el.textContent = val;
+    slider.setAttribute('aria-valuenow', val);
+    updateGeneratorPreview();
+  });
+  [$('generatorUppercase'), $('generatorLowercase'), $('generatorNumbers'), $('generatorSymbols')].forEach((cb) => {
+    if (cb) cb.addEventListener('change', () => { ensureOneGeneratorCheckbox(); updateGeneratorPreview(); });
+  });
+  $('btnCancelGenerator').addEventListener('click', () => $('passwordGeneratorDialog').close());
+  $('btnOkGenerator').addEventListener('click', applyGeneratedPassword);
   $('btnCloseAbout').addEventListener('click', () => $('aboutDialog').close());
+  $('aboutSourceLink').addEventListener('click', (e) => {
+    e.preventDefault();
+    window.app.openExternal('https://github.com/CodeGator/MimiDesktop');
+  });
   $('btnCancelConfirmDelete').addEventListener('click', () => {
     pendingDeleteSecret = null;
     pendingDeleteLoginIds = null;

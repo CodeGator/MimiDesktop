@@ -177,19 +177,8 @@
               <p class="data-path-display" id="dataPathDisplay">—</p>
               <button type="button" id="btnBrowseDataLocation" class="btn btn-ghost btn-option">Browse</button>
             </div>
-            <div class="export-security-section">
-              <h3 class="options-section-title">Export file security</h3>
-              <p class="options-note">Export files (logins/notes) are not encrypted by default. Save only to a trusted location and delete after use. Do not store in cloud or shared folders. You can add optional password protection when exporting.</p>
-            </div>
-            <div class="backup-section">
-              <h3 class="options-section-title">Backup / Restore</h3>
-              <p class="options-note">Store backups only on trusted, non-shared storage. Do not put backup files in cloud sync folders.</p>
-              <p id="backupStatus" class="backup-status" hidden></p>
-              <button type="button" id="btnBackupData" class="btn btn-ghost btn-option">Backup data</button>
-              <button type="button" id="btnRestoreBackup" class="btn btn-ghost btn-option btn-restore">Restore from backup</button>
-            </div>
-            <div class="password-section">
-              <h3 class="options-section-title">Password</h3>
+            <div class="inactivity-section">
+              <h3 class="options-section-title">Inactivity</h3>
               <p class="options-note">The vault can lock automatically after a period of inactivity.</p>
               <div class="form-group options-inline">
                 <label for="idleLockMinutes">Lock after</label>
@@ -201,11 +190,28 @@
                   <option value="0">Never</option>
                 </select>
               </div>
+            </div>
+            <div class="password-section">
+              <h3 class="options-section-title">Password</h3>
+              <p class="options-note">Your master password encrypts your vault and is required to unlock the app. If you forget it, your data cannot be recovered.</p>
               <button type="button" id="btnChangeMasterPassword" class="btn btn-ghost btn-option">Change master password</button>
+            </div>
+            <div class="backup-section">
+              <h3 class="options-section-title">Backup / Restore</h3>
+              <p class="options-note">Store backups only on trusted, non-shared storage. Do not put backup files in cloud sync folders.</p>
+              <p id="backupStatus" class="backup-status" hidden></p>
+              <button type="button" id="btnBackupData" class="btn btn-ghost btn-option">Backup data</button>
+              <button type="button" id="btnRestoreBackup" class="btn btn-ghost btn-option btn-restore">Restore from backup</button>
+            </div>
+            <div class="convert-section">
+              <h3 class="options-section-title">Convert</h3>
+              <p class="options-note">Import logins from a LastPass CSV export. Secure notes are not imported. Conflicting entries can be ignored or overwritten.</p>
+              <button type="button" id="btnImportLastPassCsv" class="btn btn-ghost btn-option btn-convert">Import from LastPass CSV</button>
             </div>
             <div class="options-list">
               <div class="danger-area">
                 <h3 class="danger-area-title">Danger area!</h3>
+                <p class="danger-area-warning">The button below permanently deletes your master password and all logins and notes. This cannot be undone.</p>
                 <button type="button" id="btnDeleteAll" class="btn btn-ghost btn-option btn-danger">Delete all data</button>
               </div>
             </div>
@@ -245,6 +251,7 @@
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
             </button>
           </div>
+          <button type="button" id="btnGeneratePassword" class="btn btn-ghost btn-option generate-password-btn">Generate</button>
         </div>
         <div class="form-group" id="groupComments">
           <label for="secretComments">Comments</label>
@@ -260,6 +267,38 @@
           <button type="submit" id="btnSaveSecret" class="btn btn-primary">Save</button>
         </div>
       </form>
+    </div>
+  </dialog>
+
+  <dialog id="passwordGeneratorDialog" class="dialog" aria-labelledby="passwordGeneratorTitle">
+    <div class="dialog-content">
+      <h2 id="passwordGeneratorTitle">Generate password</h2>
+      <div class="form-group">
+        <label for="generatorPreview">Preview</label>
+        <input type="text" id="generatorPreview" class="generator-preview" readonly aria-readonly="true">
+      </div>
+      <div class="form-group">
+        <label for="generatorLength">Length: <span id="generatorLengthValue">16</span></label>
+        <input type="range" id="generatorLength" min="4" max="30" value="16" class="generator-slider" aria-valuemin="4" aria-valuemax="30" aria-valuenow="16">
+      </div>
+      <div class="form-group generator-checkboxes">
+        <label class="generator-checkbox-label">
+          <input type="checkbox" id="generatorUppercase" checked> Upper case letters
+        </label>
+        <label class="generator-checkbox-label">
+          <input type="checkbox" id="generatorLowercase" checked> Lower case letters
+        </label>
+        <label class="generator-checkbox-label">
+          <input type="checkbox" id="generatorNumbers" checked> Numbers
+        </label>
+        <label class="generator-checkbox-label">
+          <input type="checkbox" id="generatorSymbols" checked> Symbols
+        </label>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" id="btnCancelGenerator" class="btn btn-ghost">Cancel</button>
+        <button type="button" id="btnOkGenerator" class="btn btn-primary">OK</button>
+      </div>
     </div>
   </dialog>
 
@@ -448,6 +487,23 @@
     </div>
   </dialog>
 
+  <dialog id="lastPassConflictDialog" class="dialog dialog-confirm" aria-labelledby="lastPassConflictDialogTitle">
+    <div class="dialog-content">
+      <div class="dialog-icon dialog-icon-warning" aria-hidden="true">
+        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      </div>
+      <h2 id="lastPassConflictDialogTitle">Conflicting entries</h2>
+      <p id="lastPassConflictMessage" class="dialog-message">Some imported entries already exist. Choose whether to ignore or overwrite each.</p>
+      <ul id="lastPassConflictList" class="import-conflict-list lastpass-conflict-list" role="list"></ul>
+      <div class="dialog-actions lastpass-conflict-actions">
+        <button type="button" id="btnLastPassIgnoreAll" class="btn btn-ghost">Ignore all</button>
+        <button type="button" id="btnLastPassOverwriteAll" class="btn btn-ghost">Overwrite all</button>
+        <button type="button" id="btnCancelLastPassConflict" class="btn btn-ghost">Cancel</button>
+        <button type="button" id="btnApplyLastPassConflict" class="btn btn-primary">Apply</button>
+      </div>
+    </div>
+  </dialog>
+
   <dialog id="aboutDialog" class="dialog dialog-about" aria-labelledby="aboutDialogTitle">
     <div class="dialog-content">
       <div class="about-header">
@@ -458,6 +514,9 @@
         </div>
       </div>
       <p id="aboutCopyright" class="about-copyright"></p>
+      <p class="about-source">
+        <a href="#" id="aboutSourceLink" class="about-source-link">View source on GitHub</a>
+      </p>
       <div class="dialog-actions">
         <button type="button" id="btnCloseAbout" class="btn btn-primary">OK</button>
       </div>

@@ -8,6 +8,8 @@
   --text-muted: #8b949e;
   --accent: #3b82f6;
   --accent-hover: #2563eb;
+  --secondary: #475569;
+  --secondary-hover: #64748b;
   --border: #30363d;
   --error: #f87171;
   --radius: 8px;
@@ -23,6 +25,8 @@
   --text-muted: #6b7280;
   --accent: #2563eb;
   --accent-hover: #1d4ed8;
+  --secondary: #64748b;
+  --secondary-hover: #94a3b8;
   --border: #d0d7de;
   --error: #dc2626;
   --shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
@@ -383,12 +387,18 @@ main {
 .secret-item .name {
   font-weight: 500;
   margin-bottom: 0.2rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .secret-item .type {
   font-size: 0.8rem;
   color: var(--text-muted);
   text-transform: capitalize;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .secret-item-checkbox {
@@ -557,7 +567,9 @@ main {
 
 .data-location-section {
   margin-bottom: 1rem;
-  padding-bottom: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
 }
 
 .data-path-display {
@@ -574,9 +586,18 @@ main {
   border-radius: var(--radius);
 }
 
+.inactivity-section {
+  margin-bottom: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
 .password-section {
   margin-bottom: 1rem;
-  padding-bottom: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
 }
 
 .backup-description {
@@ -603,6 +624,24 @@ main {
 }
 
 .backup-section .btn-restore:hover:not(:disabled) {
+  background: #ea580c;
+  border-color: #ea580c;
+}
+
+.convert-section {
+  margin-bottom: 1rem;
+  padding: 1rem;
+  border: 1px solid #f97316;
+  border-radius: var(--radius);
+}
+
+.convert-section .btn-convert {
+  color: #fff;
+  background: #f97316;
+  border-color: #f97316;
+}
+
+.convert-section .btn-convert:hover:not(:disabled) {
   background: #ea580c;
   border-color: #ea580c;
 }
@@ -647,6 +686,13 @@ main {
   font-size: 0.85rem;
   font-weight: 600;
   color: var(--error);
+}
+
+.danger-area-warning {
+  margin: 0 0 0.75rem;
+  font-size: 0.875rem;
+  color: var(--error);
+  line-height: 1.4;
 }
 
 /* Delete all / danger dialogs */
@@ -786,6 +832,38 @@ main {
   font-size: 0.875rem;
 }
 
+.lastpass-conflict-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  padding: 0.75rem 1rem;
+  font-size: 0.95rem;
+}
+
+.lastpass-conflict-row .import-conflict-name {
+  font-weight: 500;
+}
+
+.lastpass-conflict-type {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.lastpass-conflict-row label {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.lastpass-conflict-actions {
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
 /* About dialog */
 .dialog-about {
   max-width: 360px;
@@ -829,9 +907,23 @@ main {
 }
 
 .dialog-about .about-copyright {
-  margin: 0 0 1.25rem;
+  margin: 0 0 0.5rem;
   color: var(--text-muted);
   font-size: 0.7rem;
+}
+
+.dialog-about .about-source {
+  margin: 0 0 1.25rem;
+  font-size: 0.875rem;
+}
+
+.dialog-about .about-source-link {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.dialog-about .about-source-link:hover {
+  text-decoration: underline;
 }
 
 .dialog-about .dialog-actions {
@@ -885,6 +977,53 @@ main {
 
 .password-field input {
   flex: 1;
+}
+
+.generate-password-btn {
+  margin-top: 0.5rem;
+  background: var(--secondary);
+  color: #fff;
+  border-color: var(--secondary);
+}
+
+.generate-password-btn:hover:not(:disabled) {
+  background: var(--secondary-hover);
+  border-color: var(--secondary-hover);
+}
+
+/* Password generator dialog */
+.generator-preview {
+  font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, monospace;
+  font-size: 0.9rem;
+  letter-spacing: 0.05em;
+  background: var(--bg-elevated);
+  cursor: default;
+}
+
+.generator-slider {
+  width: 100%;
+  margin: 0.25rem 0 0;
+  accent-color: var(--accent);
+}
+
+.generator-checkboxes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.generator-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-size: 0.95rem;
+}
+
+.generator-checkbox-label input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+  accent-color: var(--accent);
 }
 
 .dialog-actions {

@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('app', {
   onShowAbout: (callback) => {
     ipcRenderer.on('app:showAbout', (_event, data) => callback(data));
   },
+  openExternal: (url) => ipcRenderer.invoke('app:openExternal', url),
   onLock: (callback) => {
     ipcRenderer.on('app:lock', () => callback());
   },
@@ -41,6 +42,7 @@ contextBridge.exposeInMainWorld('vault', {
   exportNotes: (notes, password) => ipcRenderer.invoke('vault:exportNotes', notes, password),
   importNotes: () => ipcRenderer.invoke('vault:importNotes'),
   importNotesWithPassword: (filePath, password) => ipcRenderer.invoke('vault:importNotesWithPassword', filePath, password),
+  selectAndReadLastPassCsv: () => ipcRenderer.invoke('vault:selectAndReadLastPassCsv'),
   selectDataDirectory: () => ipcRenderer.invoke('vault:selectDataDirectory'),
   setDataDirectory: (dirPath) => ipcRenderer.invoke('vault:setDataDirectory', dirPath),
   getTheme: () => ipcRenderer.invoke('vault:getTheme'),

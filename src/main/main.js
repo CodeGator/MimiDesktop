@@ -5,7 +5,7 @@
  * @module main
  */
 
-const { app, BrowserWindow, ipcMain, Menu, dialog, nativeImage, Tray } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, dialog, nativeImage, shell, Tray } = require('electron');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -66,7 +66,9 @@ const IPC = {
   VAULT_IMPORT_NOTES: 'vault:importNotes',
   VAULT_IMPORT_LOGINS_WITH_PASSWORD: 'vault:importLoginsWithPassword',
   VAULT_IMPORT_NOTES_WITH_PASSWORD: 'vault:importNotesWithPassword',
+  VAULT_SELECT_AND_READ_LASTPASS_CSV: 'vault:selectAndReadLastPassCsv',
   APP_SHOW_ABOUT: 'app:showAbout',
+  APP_OPEN_EXTERNAL: 'app:openExternal',
   APP_LOCK: 'app:lock',
   APP_FOCUS_UNLOCK: 'app:focusUnlock',
 };
@@ -151,6 +153,7 @@ function createWindow() {
     height: 800,
     minWidth: 600,
     minHeight: 400,
+    title: `${APP_NAME} - ${APP_VERSION}`,
     icon: icon && !icon.isEmpty() ? icon : undefined,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -167,7 +170,10 @@ function createWindow() {
   }
 
   mainWindow.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
-  mainWindow.once('ready-to-show', () => mainWindow?.show());
+  mainWindow.once('ready-to-show', () => {
+    mainWindow?.setTitle(`${APP_NAME} - ${APP_VERSION}`);
+    mainWindow?.show();
+  });
   mainWindow.on('minimize', () => {
     if (vaultService?.isUnlocked()) {
       mainWindow?.webContents.send(IPC.APP_LOCK);
@@ -221,10 +227,7 @@ function createTray() {
   });
   tray.setContextMenu(
     Menu.buildFromTemplate([
-      { label: 'Show ' + APP_NAME, click: () => mainWindow?.show?.() && mainWindow.focus() },
-      { type: 'separator' },
-      { label: 'Help', submenu: [{ label: 'Welcome ...', click: () => openHelpWindow() }, { label: 'Terms of Service', click: () => openTermsWindow() }, { label: 'Privacy', click: () => openPrivacyWindow() }, { type: 'separator' }, { label: 'About', click: () => showAboutDialog() }] },
-      { type: 'separator' },
+      { label: 'Show mimi-desktop', click: () => mainWindow?.show?.() && mainWindow.focus() },
       { label: 'Quit', click: () => app.quit() },
     ])
   );
@@ -778,6 +781,23 @@ function registerIpcHandlers() {
     }
   });
 
+  ipcMain.handle(IPC.VAULT_SELECT_AND_READ_LASTPASS_CSV, async () => {
+    if (!vaultService?.isUnlocked()) throw new Error('Vault is locked');
+    const result = await dialog.showOpenDialog(mainWindow ?? undefined, {
+      properties: ['openFile'],
+      title: 'Select LastPass CSV file',
+      filters: [{ name: 'CSV files', extensions: ['csv'] }],
+    });
+    if (result.canceled || !result.filePaths[0]) return { success: false, error: 'No file selected', content: null };
+    const filePath = result.filePaths[0];
+    try {
+      const content = fs.readFileSync(filePath, 'utf8');
+      return { success: true, content, error: null };
+    } catch (err) {
+      return { success: false, error: err?.message || 'Failed to read file', content: null };
+    }
+  });
+
   ipcMain.handle(IPC.VAULT_EXPORT_NOTES, async (_event, notes, exportPassword = null) => {
     if (!vaultService?.isUnlocked()) throw new Error('Vault is locked');
     if (!Array.isArray(notes) || notes.length === 0) throw new Error('No notes selected');
@@ -912,6 +932,12 @@ function registerIpcHandlers() {
     config.dataPath = newPath;
     saveConfig(config);
     return true;
+  });
+
+  ipcMain.handle(IPC.APP_OPEN_EXTERNAL, async (_event, url) => {
+    if (typeof url === 'string' && (url.startsWith('https://') || url.startsWith('http://'))) {
+      await shell.openExternal(url);
+    }
   });
 }
 
