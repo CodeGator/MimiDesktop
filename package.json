@@ -1,6 +1,6 @@
 {
   "name": "mimi-desktop",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Encrypted local password and note storage",
   "main": "src/main/main.js",
   "scripts": {

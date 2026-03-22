@@ -16,7 +16,7 @@ const CryptoService = require('./services/CryptoService');
 
 const packageJson = require(path.join(__dirname, '..', '..', 'package.json'));
 const APP_NAME = packageJson.build?.productName || packageJson.name || 'Mimi Desktop';
-const APP_VERSION = packageJson.version || '1.0.0';
+const APP_VERSION = packageJson.version || '1.0.1';
 
 /** @type {BrowserWindow | null} */
 let mainWindow = null;
@@ -69,6 +69,7 @@ const IPC = {
   VAULT_SELECT_AND_READ_LASTPASS_CSV: 'vault:selectAndReadLastPassCsv',
   APP_SHOW_ABOUT: 'app:showAbout',
   APP_OPEN_EXTERNAL: 'app:openExternal',
+  APP_PRINT_HTML: 'app:printHtml',
   APP_LOCK: 'app:lock',
   APP_FOCUS_UNLOCK: 'app:focusUnlock',
 };
@@ -407,6 +408,68 @@ function setApplicationMenu() {
     },
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
+// -----------------------------------------------------------------------------
+// Printout: system print dialog (physical printer, Microsoft Print to PDF, etc.)
+// -----------------------------------------------------------------------------
+
+/**
+ * @param {string} html
+ * @returns {string} Path to a UTF-8 temp .html file (caller should delete when done).
+ */
+function writePrintTempHtmlFile(html) {
+  const tempDir = path.join(app.getPath('temp'), 'mimi-desktop-print');
+  fs.mkdirSync(tempDir, { recursive: true });
+  const tempHtml = path.join(tempDir, `print-${process.pid}-${Date.now()}.html`);
+  fs.writeFileSync(tempHtml, html, 'utf8');
+  return tempHtml;
+}
+
+/**
+ * Hidden window + system print dialog (physical printer, “Print to PDF”, etc.).
+ * Waits for layout/paint before opening the dialog so virtual printers get a real page.
+ * @param {string} html
+ * @returns {Promise<{ success: boolean, canceled?: boolean, error?: string }>}
+ */
+async function printHtmlWithSystemDialog(html) {
+  const tempHtml = writePrintTempHtmlFile(html);
+  const printWin = new BrowserWindow({
+    width: 816,
+    height: 1056,
+    show: false,
+    webPreferences: {
+      sandbox: true,
+      contextIsolation: true,
+    },
+  });
+  try {
+    await printWin.loadFile(tempHtml);
+    try {
+      await printWin.webContents.executeJavaScript(
+        `new Promise(function (resolve) {
+          requestAnimationFrame(function () { requestAnimationFrame(function () { resolve(); }); });
+        });`,
+      );
+    } catch {
+      // Continue; print may still work without an extra paint tick.
+    }
+    return await new Promise((resolve) => {
+      printWin.webContents.print({ silent: false, printBackground: true }, (success, failureReason) => {
+        if (success) resolve({ success: true });
+        else if (failureReason === 'cancelled' || failureReason === 'canceled')
+          resolve({ success: false, canceled: true });
+        else resolve({ success: false, error: String(failureReason || 'Print failed') });
+      });
+    });
+  } finally {
+    printWin.destroy();
+    try {
+      fs.unlinkSync(tempHtml);
+    } catch {
+      // ignore
+    }
+  }
 }
 
 // -----------------------------------------------------------------------------
@@ -937,6 +1000,17 @@ function registerIpcHandlers() {
   ipcMain.handle(IPC.APP_OPEN_EXTERNAL, async (_event, url) => {
     if (typeof url === 'string' && (url.startsWith('https://') || url.startsWith('http://'))) {
       await shell.openExternal(url);
+    }
+  });
+
+  ipcMain.handle(IPC.APP_PRINT_HTML, async (_event, html) => {
+    if (typeof html !== 'string' || !html.trim()) {
+      return { success: false, error: 'Nothing to print.' };
+    }
+    try {
+      return await printHtmlWithSystemDialog(html);
+    } catch (err) {
+      return { success: false, error: err?.message || String(err) };
     }
   });
 }

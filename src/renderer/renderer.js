@@ -12,6 +12,7 @@
   // --- DOM references (unlock screen, vault screen, tabs, lists, dialogs) ---
   const unlockScreen = $('unlockScreen');
   const vaultScreen = $('vaultScreen');
+  const vaultScreenError = $('vaultScreenError');
   const unlockForm = $('unlockForm');
   const unlockTitle = $('unlockTitle');
   const unlockHint = $('unlockHint');
@@ -85,7 +86,7 @@
   // --- State ---
   let secrets = [];
   let editingId = null;
-  let activeTab = 'notes';
+  let activeTab = 'logins';
   let notesPage = 1;
   let notesPageSize = 10;
   let notesSort = 'name-asc';
@@ -134,60 +135,144 @@
     });
   }
 
-  // --- Print: build HTML and print via hidden iframe ---
+  // --- Print: one system dialog for any destination (printer, Microsoft Print to PDF, etc.) ---
+  async function printWithSystemDialog(docHtml) {
+    showError(vaultScreenError, '');
+    const overlay = $('printBusyOverlay');
+    if (overlay) {
+      overlay.hidden = false;
+      overlay.setAttribute('aria-hidden', 'false');
+      overlay.setAttribute('aria-busy', 'true');
+    }
+    try {
+      const result = await window.app.printHtml(docHtml);
+      if (result?.canceled) return;
+      if (!result?.success) {
+        showError(vaultScreenError, result?.error || 'Could not print.');
+        return;
+      }
+      showError(vaultScreenError, '');
+    } catch (err) {
+      showError(vaultScreenError, err?.message || 'Could not print.');
+    } finally {
+      if (overlay) {
+        overlay.hidden = true;
+        overlay.setAttribute('aria-hidden', 'true');
+        overlay.setAttribute('aria-busy', 'false');
+      }
+    }
+  }
+
   function getPrintLoginsHtml(toPrint) {
-    const rowHtml = (s) =>
-      `<tr>
-        <td>${escapeHtml(s.name)}</td>
-        <td>${escapeHtml(s.url || '—')}</td>
-        <td>${escapeHtml(s.username || '—')}</td>
-        <td>${escapeHtml(s.password || '')}</td>
-        <td>${escapeHtml(s.comments || '—')}</td>
-      </tr>`;
-    const allRows = toPrint.map(rowHtml).join('');
+    const field = (label, raw) => {
+      const text =
+        raw === undefined || raw === null || String(raw).trim() === '' ? '—' : String(raw);
+      return `<div class="print-login-field">
+        <span class="print-login-label">${escapeHtml(label)}</span>
+        <span class="print-login-value">${escapeHtml(text)}</span>
+      </div>`;
+    };
+    const cardHtml = (s) => {
+      const title =
+        s.name === undefined || s.name === null || String(s.name).trim() === ''
+          ? '—'
+          : String(s.name);
+      return `<article class="print-login-card">
+        <h2 class="print-login-card-title">${escapeHtml(title)}</h2>
+        ${field('URL', s.url)}
+        ${field('Username', s.username)}
+        ${field('Password', s.password)}
+        ${field('Comments', s.comments)}
+      </article>`;
+    };
+    const cards = toPrint.map(cardHtml).join('');
     return `
       <div class="print-cover">
         <h1 class="print-cover-title">Mimi Desktop</h1>
         <p class="print-cover-date">${new Date().toLocaleString()}</p>
         <p class="print-confidential">This document contains confidential login information. Do not share it with anyone. Store or destroy it securely.</p>
       </div>
-      <table class="print-logins-table">
-        <thead><tr><th>Name</th><th>URL</th><th>Username</th><th>Password</th><th>Comments</th></tr></thead>
-        <tbody>${allRows}</tbody>
-      </table>
+      <div class="print-login-list">${cards}</div>
     `;
+  }
+
+  const PRINT_DOC_BASE_STYLES = `
+      @page { margin: 12mm; }
+      html {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      *, *::before, *::after { box-sizing: border-box; }
+      html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        max-width: 100%;
+        height: auto;
+        min-height: 0;
+        background: #fff;
+      }
+      body {
+        font-family: 'Segoe UI', system-ui, sans-serif;
+        font-size: 11pt;
+        line-height: 1.45;
+        color: #111;
+      }
+    `;
+
+  const PRINT_LOGINS_STYLES = `${PRINT_DOC_BASE_STYLES}
+      .print-cover { text-align: center; padding: 2rem 1rem; page-break-after: always; }
+      .print-cover-title { margin: 0 0 0.5rem; font-size: 1.5rem; }
+      .print-cover-date { margin: 0 0 1rem; font-size: 0.9rem; color: #666; }
+      .print-confidential { margin: 0; font-size: 0.875rem; color: #c00; font-weight: 600; max-width: 28em; margin-left: auto; margin-right: auto; }
+      .print-login-list { margin: 0; padding: 0; }
+      .print-login-card {
+        border: 1px solid #888;
+        padding: 0.65rem 0.85rem;
+        margin: 0 0 1rem;
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+      .print-login-card-title {
+        margin: 0 0 0.55rem;
+        padding-bottom: 0.35rem;
+        border-bottom: 1px solid #ccc;
+        font-size: 1.05rem;
+        font-weight: 700;
+        line-height: 1.3;
+        word-break: break-word;
+        overflow-wrap: break-word;
+        max-width: 100%;
+      }
+      .print-login-field { margin: 0.5rem 0 0; }
+      .print-login-field:first-of-type { margin-top: 0; }
+      .print-login-label {
+        display: block;
+        font-size: 0.68rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: #444;
+        margin-bottom: 0.12rem;
+      }
+      .print-login-value {
+        display: block;
+        word-break: break-word;
+        overflow-wrap: break-word;
+        white-space: pre-wrap;
+        max-width: 100%;
+      }
+    `;
+
+  function buildPrintLoginsDocHtml(toPrint) {
+    const contentHtml = getPrintLoginsHtml(toPrint);
+    return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Mimi Desktop - Logins</title><style>${PRINT_LOGINS_STYLES}</style></head><body>${contentHtml}</body></html>`;
   }
 
   function printSelectedLogins() {
     const toPrint = secrets.filter((s) => s.type === 'password' && checkedLogins.has(s.id));
     if (toPrint.length === 0) return;
-    const contentHtml = getPrintLoginsHtml(toPrint);
-    const printStyles = `
-      html, body { margin: 0; padding: 0; min-height: 0; height: auto; }
-      body { font-family: 'Segoe UI', system-ui, sans-serif; padding: 1rem; }
-      .print-cover { text-align: center; padding: 2rem 1.5rem; page-break-after: always; }
-      .print-cover-title { margin: 0 0 0.5rem; font-size: 1.5rem; }
-      .print-cover-date { margin: 0 0 1rem; font-size: 0.9rem; color: #666; }
-      .print-confidential { margin: 0; font-size: 0.875rem; color: #c00; font-weight: 600; max-width: 28em; margin-left: auto; margin-right: auto; }
-      .print-logins-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
-      .print-logins-table thead { display: table-header-group; }
-      .print-logins-table tr { page-break-inside: avoid; }
-      .print-logins-table th, .print-logins-table td { border: 1px solid #ccc; padding: 0.5rem 0.75rem; text-align: left; }
-      .print-logins-table th { background: #f0f0f0; font-weight: 600; }
-    `;
-    const docHtml = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Mimi Desktop — Logins</title><style>${printStyles}</style></head><body>${contentHtml}</body></html>`;
-    const iframe = document.createElement('iframe');
-    iframe.setAttribute('style', 'position:absolute;width:0;height:0;border:0;visibility:hidden;');
-    document.body.appendChild(iframe);
-    const doc = iframe.contentWindow.document;
-    doc.open();
-    doc.write(docHtml);
-    doc.close();
-    iframe.contentWindow.focus();
-    iframe.contentWindow.print();
-    setTimeout(() => {
-      document.body.removeChild(iframe);
-    }, 1000);
+    void printWithSystemDialog(buildPrintLoginsDocHtml(toPrint));
   }
 
   function getPrintNotesHtml(toPrint) {
@@ -210,36 +295,37 @@
     `;
   }
 
-  function printSelectedNotes() {
-    const toPrint = secrets.filter((s) => s.type === 'note' && checkedNotes.has(s.id));
-    if (toPrint.length === 0) return;
-    const contentHtml = getPrintNotesHtml(toPrint);
-    const printStyles = `
-      html, body { margin: 0; padding: 0; min-height: 0; height: auto; }
-      body { font-family: 'Segoe UI', system-ui, sans-serif; padding: 1rem; }
-      .print-cover { text-align: center; padding: 2rem 1.5rem; page-break-after: always; }
+  const PRINT_NOTES_STYLES = `${PRINT_DOC_BASE_STYLES}
+      .print-cover { text-align: center; padding: 2rem 1rem; page-break-after: always; }
       .print-cover-title { margin: 0 0 0.5rem; font-size: 1.5rem; }
       .print-cover-date { margin: 0 0 1rem; font-size: 0.9rem; color: #666; }
       .print-confidential { margin: 0; font-size: 0.875rem; color: #c00; font-weight: 600; max-width: 28em; margin-left: auto; margin-right: auto; }
-      .print-notes-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+      .print-notes-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 0.9rem; }
       .print-notes-table thead { display: table-header-group; }
-      .print-notes-table tr { page-break-inside: avoid; }
-      .print-notes-table th, .print-notes-table td { border: 1px solid #ccc; padding: 0.5rem 0.75rem; text-align: left; }
+      .print-notes-table tbody { display: table-row-group; }
+      .print-notes-table tr { break-inside: auto; page-break-inside: auto; }
+      .print-notes-table th, .print-notes-table td {
+        border: 1px solid #ccc;
+        padding: 0.5rem 0.75rem;
+        text-align: left;
+        vertical-align: top;
+        word-break: break-word;
+        overflow-wrap: break-word;
+        white-space: pre-wrap;
+      }
+      .print-notes-table th:nth-child(1), .print-notes-table td:nth-child(1) { width: 26%; }
       .print-notes-table th { background: #f0f0f0; font-weight: 600; }
     `;
-    const docHtml = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Mimi Desktop — Notes</title><style>${printStyles}</style></head><body>${contentHtml}</body></html>`;
-    const iframe = document.createElement('iframe');
-    iframe.setAttribute('style', 'position:absolute;width:0;height:0;border:0;visibility:hidden;');
-    document.body.appendChild(iframe);
-    const doc = iframe.contentWindow.document;
-    doc.open();
-    doc.write(docHtml);
-    doc.close();
-    iframe.contentWindow.focus();
-    iframe.contentWindow.print();
-    setTimeout(() => {
-      document.body.removeChild(iframe);
-    }, 1000);
+
+  function buildPrintNotesDocHtml(toPrint) {
+    const contentHtml = getPrintNotesHtml(toPrint);
+    return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Mimi Desktop - Notes</title><style>${PRINT_NOTES_STYLES}</style></head><body>${contentHtml}</body></html>`;
+  }
+
+  function printSelectedNotes() {
+    const toPrint = secrets.filter((s) => s.type === 'note' && checkedNotes.has(s.id));
+    if (toPrint.length === 0) return;
+    void printWithSystemDialog(buildPrintNotesDocHtml(toPrint));
   }
 
   function togglePasswordVisibility(inputEl, btnEl) {
@@ -297,7 +383,9 @@
     if (unlocked) {
       masterPasswordInput.value = '';
       if (unlockPasteWarning) unlockPasteWarning.hidden = true;
-      loadSecrets();
+      void loadSecrets().finally(() => {
+        void setTab('logins');
+      });
       window.vault.getIdleLockMinutes().then((minutes) => {
         if (minutes > 0) startIdleLockWatcher(minutes * 60 * 1000);
       });
@@ -1490,7 +1578,7 @@
     const aboutVersion = $('aboutVersion');
     const aboutCopyright = $('aboutCopyright');
     aboutTitle.textContent = data.name || 'Mimi Desktop';
-    aboutVersion.textContent = `Version ${data.version || '1.0.0'}`;
+    aboutVersion.textContent = `Version ${data.version || '1.0.1'}`;
     aboutCopyright.textContent = `Copyright © 2002 - ${new Date().getFullYear()} by CodeGator. All rights reserved`;
     if (data.iconDataUrl) {
       aboutIcon.src = data.iconDataUrl;

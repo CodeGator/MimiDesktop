@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('app', {
     ipcRenderer.on('app:showAbout', (_event, data) => callback(data));
   },
   openExternal: (url) => ipcRenderer.invoke('app:openExternal', url),
+  printHtml: (html) => ipcRenderer.invoke('app:printHtml', html),
   onLock: (callback) => {
     ipcRenderer.on('app:lock', () => callback());
   },

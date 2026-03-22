@@ -33,12 +33,13 @@
       </section>
 
       <section id="vaultScreen" class="screen" hidden>
+        <div id="vaultScreenError" class="error vault-screen-error" role="alert" hidden></div>
         <div class="tabs" role="tablist" aria-label="Notes, Logins and Options">
-          <button type="button" id="tabNotes" class="tab" role="tab" aria-selected="true" aria-controls="panelNotes" data-tab="notes">
+          <button type="button" id="tabNotes" class="tab" role="tab" aria-selected="false" aria-controls="panelNotes" data-tab="notes">
             <svg class="tab-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
             Notes
           </button>
-          <button type="button" id="tabLogins" class="tab" role="tab" aria-selected="false" aria-controls="panelLogins" data-tab="logins">
+          <button type="button" id="tabLogins" class="tab" role="tab" aria-selected="true" aria-controls="panelLogins" data-tab="logins">
             <svg class="tab-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
             Logins
           </button>
@@ -47,7 +48,7 @@
             Options
           </button>
         </div>
-        <div id="panelNotes" class="tab-panel" role="tabpanel" aria-labelledby="tabNotes">
+        <div id="panelNotes" class="tab-panel" role="tabpanel" aria-labelledby="tabNotes" hidden>
           <div class="notes-toolbar">
             <div class="notes-toolbar-row notes-toolbar-actions">
               <button type="button" class="btn btn-primary btn-icon" id="btnNewNote" title="New note" aria-label="New note">
@@ -105,7 +106,7 @@
             </div>
           </div>
         </div>
-        <div id="panelLogins" class="tab-panel" role="tabpanel" aria-labelledby="tabLogins" hidden>
+        <div id="panelLogins" class="tab-panel" role="tabpanel" aria-labelledby="tabLogins">
           <div class="logins-toolbar">
             <div class="logins-toolbar-row logins-toolbar-actions">
               <button type="button" class="btn btn-primary btn-icon" id="btnNewLogin" title="New login" aria-label="New login">
@@ -219,6 +220,13 @@
         </div>
       </section>
     </main>
+  </div>
+
+  <div id="printBusyOverlay" class="print-busy-overlay" hidden aria-hidden="true" role="status" aria-live="polite" aria-busy="false">
+    <div class="print-busy-card">
+      <div class="print-busy-spinner" aria-hidden="true"></div>
+      <p class="print-busy-title">Printing...</p>
+    </div>
   </div>
 
   <dialog id="secretDialog" class="dialog" aria-labelledby="dialogTitle">
