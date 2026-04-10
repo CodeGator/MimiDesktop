@@ -429,6 +429,11 @@ main {
   color: var(--text-muted);
 }
 
+.secret-expiry-soon {
+  color: #f97316;
+  font-weight: 600;
+}
+
 .secret-expiry-expired {
   color: var(--error);
   font-weight: 600;
@@ -462,6 +467,40 @@ main {
 .secret-item:hover {
   background: var(--bg-hover);
   border-color: var(--accent);
+}
+
+/* API keys: expires within 30 days — same orange as Backup/Convert on Options */
+.secret-item.secret-item-api-key-expiring {
+  border-color: #f97316;
+}
+
+.secret-item.secret-item-api-key-expiring:hover {
+  border-color: #ea580c;
+}
+
+.secret-item.secret-item-api-key-expiring .name {
+  color: #f97316;
+}
+
+.secret-item.secret-item-api-key-expiring .type {
+  color: #ea580c;
+}
+
+/* API keys: past expiration date */
+.secret-item.secret-item-api-key-expired {
+  border-color: var(--error);
+}
+
+.secret-item.secret-item-api-key-expired:hover {
+  border-color: #ef4444;
+}
+
+.secret-item.secret-item-api-key-expired .name {
+  color: var(--error);
+}
+
+.secret-item.secret-item-api-key-expired .type {
+  color: #ef4444;
 }
 
 .secret-item .meta {
@@ -623,11 +662,17 @@ main {
   margin-bottom: 0;
 }
 
+.vault-format-section {
+  margin-bottom: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
 .vault-format-details {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
-  margin-bottom: 0.75rem;
 }
 
 .export-security-section {

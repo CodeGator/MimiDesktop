@@ -17,7 +17,7 @@ const { registerVaultExportImportHandlers } = require('./ipc/vaultExportImportHa
 
 const packageJson = require(path.join(__dirname, '..', '..', 'package.json'));
 const APP_NAME = packageJson.build?.productName || packageJson.name || 'Mimi Desktop';
-const APP_VERSION = packageJson.version || '1.0.2';
+const APP_VERSION = packageJson.version || '1.0.3';
 
 /** @type {BrowserWindow | null} */
 let mainWindow = null;

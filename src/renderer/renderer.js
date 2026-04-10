@@ -631,6 +631,48 @@
     return arr;
   }
 
+  const API_KEY_EXPIRING_SOON_DAYS = 30;
+
+  /** End of local calendar day for YYYY-MM-DD expiresOn, or null if missing / invalid. */
+  function apiKeyExpiryEndLocalMs(secret) {
+    if (secret.type !== 'apikey') return null;
+    const raw = (secretData(secret).expiresOn || '').trim();
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+    if (!m) return null;
+    const y = Number(m[1]);
+    const mo = Number(m[2]) - 1;
+    const d = Number(m[3]);
+    return new Date(y, mo, d, 23, 59, 59, 999).getTime();
+  }
+
+  /** True when API key has a YYYY-MM-DD expiration and local calendar day has passed. */
+  function apiKeyIsExpired(secret) {
+    const end = apiKeyExpiryEndLocalMs(secret);
+    if (end == null) return false;
+    return Date.now() > end;
+  }
+
+  /** True when not expired and expiry falls on or before end of day (today + N days), local time. */
+  function apiKeyExpiringWithinDays(secret, days) {
+    if (apiKeyIsExpired(secret)) return false;
+    const end = apiKeyExpiryEndLocalMs(secret);
+    if (end == null) return false;
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const limit = new Date(today);
+    limit.setDate(limit.getDate() + days);
+    const windowEnd = new Date(
+      limit.getFullYear(),
+      limit.getMonth(),
+      limit.getDate(),
+      23,
+      59,
+      59,
+      999
+    ).getTime();
+    return end <= windowEnd;
+  }
+
   /** API key list row: optional expiration line (calendar date YYYY-MM-DD, end of local day). */
   function apiKeyExpirationDisplay(secret) {
     if (secret.type !== 'apikey') return '';
@@ -643,10 +685,13 @@
     const y = Number(m[1]);
     const mo = Number(m[2]) - 1;
     const d = Number(m[3]);
-    const endLocal = new Date(y, mo, d, 23, 59, 59, 999).getTime();
     const displayDate = new Date(y, mo, d).toLocaleDateString(undefined, { dateStyle: 'medium' });
-    const expired = Date.now() > endLocal;
-    const cls = expired ? 'secret-expiry secret-expiry-expired' : 'secret-expiry';
+    const expired = apiKeyIsExpired(secret);
+    const soon =
+      !expired && apiKeyExpiringWithinDays(secret, API_KEY_EXPIRING_SOON_DAYS);
+    let cls = 'secret-expiry';
+    if (expired) cls += ' secret-expiry-expired';
+    else if (soon) cls += ' secret-expiry-soon';
     const text = expired ? `Expired · ${displayDate}` : `Expires ${displayDate}`;
     return `<span class="${cls}">${escapeHtml(text)}</span>`;
   }
@@ -679,6 +724,12 @@
   function renderSecretItem(secret, listEl, opts = {}) {
     const li = document.createElement('li');
     li.className = 'secret-item';
+    if (secret.type === 'apikey') {
+      if (apiKeyIsExpired(secret)) li.classList.add('secret-item-api-key-expired');
+      else if (apiKeyExpiringWithinDays(secret, API_KEY_EXPIRING_SOON_DAYS)) {
+        li.classList.add('secret-item-api-key-expiring');
+      }
+    }
     li.setAttribute('role', 'listitem');
     const typeSubtitle =
       secret.type === 'password'
@@ -2020,7 +2071,7 @@
     const aboutVersion = $('aboutVersion');
     const aboutCopyright = $('aboutCopyright');
     aboutTitle.textContent = data.name || 'Mimi Desktop';
-    aboutVersion.textContent = `Version ${data.version || '1.0.2'}`;
+    aboutVersion.textContent = `Version ${data.version || '1.0.3'}`;
     aboutCopyright.textContent = `Copyright © 2002 - ${new Date().getFullYear()} by CodeGator. All rights reserved`;
     if (data.iconDataUrl) {
       aboutIcon.src = data.iconDataUrl;
