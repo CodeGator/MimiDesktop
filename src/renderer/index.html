@@ -11,7 +11,6 @@
   <div id="app">
     <main>
       <section id="unlockScreen" class="screen">
-        <p class="unlock-screen-description"><strong>Mimi Desktop</strong> is a secret keeper. All data is stored and encrypted locally. No data is ever copied to the cloud, or shared with any other computer.</p>
         <div class="unlock-card">
           <h2 id="unlockTitle">Unlock</h2>
           <p class="unlock-hint" id="unlockHint">Enter your master password to open Mimi Desktop.</p>
@@ -34,7 +33,7 @@
 
       <section id="vaultScreen" class="screen" hidden>
         <div id="vaultScreenError" class="error vault-screen-error" role="alert" hidden></div>
-        <div class="tabs" role="tablist" aria-label="Notes, Logins and Options">
+        <div class="tabs" role="tablist" aria-label="Notes, Logins, API keys, and Options">
           <button type="button" id="tabNotes" class="tab" role="tab" aria-selected="false" aria-controls="panelNotes" data-tab="notes">
             <svg class="tab-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
             Notes
@@ -42,6 +41,10 @@
           <button type="button" id="tabLogins" class="tab" role="tab" aria-selected="true" aria-controls="panelLogins" data-tab="logins">
             <svg class="tab-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
             Logins
+          </button>
+          <button type="button" id="tabApiKeys" class="tab" role="tab" aria-selected="false" aria-controls="panelApiKeys" data-tab="apiKeys">
+            <svg class="tab-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+            API keys
           </button>
           <button type="button" id="tabOptions" class="tab" role="tab" aria-selected="false" aria-controls="panelOptions" data-tab="options">
             <svg class="tab-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -164,6 +167,64 @@
             </div>
           </div>
         </div>
+        <div id="panelApiKeys" class="tab-panel" role="tabpanel" aria-labelledby="tabApiKeys" hidden>
+          <div class="api-keys-toolbar">
+            <div class="api-keys-toolbar-row api-keys-toolbar-actions">
+              <button type="button" class="btn btn-primary btn-icon" id="btnNewApiKey" title="New API key" aria-label="New API key">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              </button>
+              <button type="button" id="btnImportApiKeys" class="btn btn-primary btn-icon" title="Import API keys" aria-label="Import API keys">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              </button>
+              <button type="button" id="btnExportApiKeys" class="btn btn-primary btn-icon" disabled title="Export selected" aria-label="Export selected">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              </button>
+              <button type="button" id="btnPrintApiKeys" class="btn btn-primary btn-icon" disabled title="Print selected" aria-label="Print selected">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+              </button>
+              <button type="button" id="btnDeleteSelectedApiKeys" class="btn btn-danger btn-icon" disabled title="Delete selected" aria-label="Delete selected">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+              </button>
+            </div>
+            <div class="api-keys-toolbar-row api-keys-toolbar-filter">
+              <input type="search" id="searchApiKeys" placeholder="Search API keys..." class="search-input" aria-label="Search API keys">
+              <label for="apiKeysSort" class="sort-label">Sort</label>
+              <select id="apiKeysSort" class="sort-select" aria-label="Sort API keys">
+                <option value="name-asc">Name (A–Z)</option>
+                <option value="name-desc">Name (Z–A)</option>
+                <option value="updated-desc">Newest first</option>
+                <option value="updated-asc">Oldest first</option>
+              </select>
+              <span class="secret-count" id="apiKeysCount">0 API keys</span>
+              <span id="apiKeysSelectActions" class="select-actions">
+                <button type="button" id="btnApiKeysSelectAll" class="btn btn-ghost btn-icon btn-sm" title="Select all" aria-label="Select all">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                </button>
+                <button type="button" id="btnApiKeysUnselectAll" class="btn btn-ghost btn-icon btn-sm" title="Unselect all" aria-label="Unselect all">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/></svg>
+                </button>
+              </span>
+            </div>
+          </div>
+          <ul id="apiKeysList" class="secret-list" role="list"></ul>
+          <div id="emptyApiKeys" class="empty-state" hidden>
+            <p>No API keys yet.</p>
+          </div>
+          <div id="apiKeysPagination" class="pagination" hidden>
+            <div class="pagination-controls">
+              <label for="apiKeysPageSize" class="pagination-label">Page size</label>
+              <select id="apiKeysPageSize" class="pagination-select" aria-label="API keys per page">
+                <option value="10" selected>10</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+              </select>
+              <span id="apiKeysPageInfo" class="pagination-info"></span>
+              <button type="button" id="apiKeysPrevPage" class="btn btn-ghost btn-sm">Previous</button>
+              <button type="button" id="apiKeysNextPage" class="btn btn-ghost btn-sm">Next</button>
+            </div>
+          </div>
+        </div>
         <div id="panelOptions" class="tab-panel options-panel" role="tabpanel" aria-labelledby="tabOptions" hidden>
           <div class="options-content">
             <div class="theme-section">
@@ -177,6 +238,13 @@
               <h3 class="options-section-title">Data location</h3>
               <p class="data-path-display" id="dataPathDisplay">—</p>
               <button type="button" id="btnBrowseDataLocation" class="btn btn-ghost btn-option">Browse</button>
+            </div>
+            <div class="vault-format-section">
+              <h3 class="options-section-title">Vault file versions</h3>
+              <div class="vault-format-details">
+                <p id="vaultFileEnvelopeVersion" class="options-note" role="status">—</p>
+                <p id="vaultPayloadSerializationVersion" class="options-note" role="status">—</p>
+              </div>
             </div>
             <div class="inactivity-section">
               <h3 class="options-section-title">Inactivity</h3>
@@ -212,7 +280,7 @@
             <div class="options-list">
               <div class="danger-area">
                 <h3 class="danger-area-title">Danger area!</h3>
-                <p class="danger-area-warning">The button below permanently deletes your master password and all logins and notes. This cannot be undone.</p>
+                <p class="danger-area-warning">The button below permanently deletes your master password and all logins, API keys, and notes. This cannot be undone.</p>
                 <button type="button" id="btnDeleteAll" class="btn btn-ghost btn-option btn-danger">Delete all data</button>
               </div>
             </div>
@@ -236,7 +304,7 @@
         <input type="hidden" id="secretId">
         <input type="hidden" id="secretType">
         <div class="form-group">
-          <label for="secretName">Name</label>
+          <label for="secretName" id="secretNameLabel">Name</label>
           <input type="text" id="secretName" required placeholder="e.g. Gmail">
         </div>
         <div class="form-group" id="groupUrl">
@@ -248,18 +316,23 @@
           <input type="text" id="secretUsername" placeholder="Optional">
         </div>
         <div class="form-group" id="groupPassword">
-          <label for="secretPassword">Password</label>
+          <label for="secretPassword" id="secretPasswordLabel">Password</label>
           <div class="password-field">
             <input type="password" id="secretPassword" placeholder="Optional">
             <button type="button" id="togglePassword" class="btn btn-ghost btn-eye" title="Show password" aria-label="Show password">
               <svg class="icon-eye" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
               <svg class="icon-eye-off" hidden xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
             </button>
-            <button type="button" id="copyPassword" class="btn btn-ghost btn-icon" title="Copy password" aria-label="Copy password">
+            <button type="button" id="copyPassword" class="btn btn-ghost btn-icon" title="Copy password" aria-label="Copy password" data-copy-label-password="Copy password" data-copy-label-apikey="Copy API key">
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
             </button>
           </div>
           <button type="button" id="btnGeneratePassword" class="btn btn-ghost btn-option generate-password-btn">Generate</button>
+        </div>
+        <div class="form-group" id="groupApiKeyExpiration" hidden>
+          <label for="secretExpiresOn">Expiration date</label>
+          <input type="date" id="secretExpiresOn" autocomplete="off">
+          <p class="dialog-hint">Optional. Leave blank if the key does not expire.</p>
         </div>
         <div class="form-group" id="groupComments">
           <label for="secretComments">Comments</label>
@@ -316,7 +389,7 @@
         <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
       </div>
       <h2 id="deleteAllDialogTitle">Delete all data</h2>
-      <p class="dialog-message">This will permanently delete your master password and all notes and logins. This cannot be undone.</p>
+      <p class="dialog-message">This will permanently delete your master password and all notes, logins, and API keys. This cannot be undone.</p>
       <div class="form-group">
         <label for="deleteConfirmPhrase">Type <strong>delete everything</strong> to confirm</label>
         <input type="text" id="deleteConfirmPhrase" placeholder="delete everything" autocomplete="off">
@@ -495,6 +568,18 @@
     </div>
   </dialog>
 
+  <dialog id="importApiKeyConflictDialog" class="dialog dialog-confirm" aria-labelledby="importApiKeyConflictDialogTitle">
+    <div class="dialog-content">
+      <h2 id="importApiKeyConflictDialogTitle">Merge with existing API keys</h2>
+      <p class="dialog-message">These API keys already exist. Choose which to merge (imported data fills in empty fields).</p>
+      <ul id="importApiKeyConflictList" class="import-conflict-list" role="list"></ul>
+      <div class="dialog-actions">
+        <button type="button" id="btnCancelImportApiKeyConflict" class="btn btn-ghost">Cancel</button>
+        <button type="button" id="btnApplyImportApiKeyConflict" class="btn btn-primary">Merge selected</button>
+      </div>
+    </div>
+  </dialog>
+
   <dialog id="lastPassConflictDialog" class="dialog dialog-confirm" aria-labelledby="lastPassConflictDialogTitle">
     <div class="dialog-content">
       <div class="dialog-icon dialog-icon-warning" aria-hidden="true">
@@ -533,6 +618,7 @@
 
   <div id="printLoginsContainer" class="print-only" hidden aria-hidden="true"></div>
 
+  <script src="secretView.js"></script>
   <script src="renderer.js"></script>
 </body>
 </html>

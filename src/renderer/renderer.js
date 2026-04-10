@@ -1,5 +1,5 @@
 /**
- * Renderer process: UI for unlock, vault (notes/logins), options, dialogs.
+ * Renderer process: UI for unlock, vault (notes/logins/API keys), options, dialogs.
  * Communicates with main only via window.app and window.vault (preload contextBridge).
  * No Node/Electron APIs; uses DOM, fetch-equivalent via IPC.
  */
@@ -8,6 +8,17 @@
 
   const $ = (id) => document.getElementById(id);
   const $$ = (sel, root = document) => root.querySelector(sel);
+
+  /** Type-specific fields for v2 vault secrets (`data` object from main process). */
+  const secretData =
+    window.MimiSecretView && typeof window.MimiSecretView.secretData === 'function'
+      ? window.MimiSecretView.secretData
+      : function secretDataFallback(s) {
+          if (s && typeof s === 'object' && s.data && typeof s.data === 'object' && !Array.isArray(s.data)) {
+            return s.data;
+          }
+          return {};
+        };
 
   // --- DOM references (unlock screen, vault screen, tabs, lists, dialogs) ---
   const unlockScreen = $('unlockScreen');
@@ -35,20 +46,30 @@
   const btnConfirmDeleteAll = $('btnConfirmDeleteAll');
   const tabNotes = $('tabNotes');
   const tabLogins = $('tabLogins');
+  const tabApiKeys = $('tabApiKeys');
   const tabOptions = $('tabOptions');
   const panelNotes = $('panelNotes');
   const panelLogins = $('panelLogins');
+  const panelApiKeys = $('panelApiKeys');
   const panelOptions = $('panelOptions');
   const searchNotes = $('searchNotes');
   const searchLogins = $('searchLogins');
+  const searchApiKeys = $('searchApiKeys');
   const notesList = $('notesList');
   const loginsList = $('loginsList');
+  const apiKeysList = $('apiKeysList');
   const notesCount = $('notesCount');
   const loginsCount = $('loginsCount');
+  const apiKeysCount = $('apiKeysCount');
   const emptyNotes = $('emptyNotes');
   const emptyLogins = $('emptyLogins');
+  const emptyApiKeys = $('emptyApiKeys');
   const btnNewNote = $('btnNewNote');
   const btnNewLogin = $('btnNewLogin');
+  const btnNewApiKey = $('btnNewApiKey');
+  const secretNameLabel = $('secretNameLabel');
+  const secretPasswordLabel = $('secretPasswordLabel');
+  const btnGeneratePassword = $('btnGeneratePassword');
   const secretDialog = $('secretDialog');
   const secretForm = $('secretForm');
   const secretId = $('secretId');
@@ -64,6 +85,8 @@
   const groupUsername = $('groupUsername');
   const groupPassword = $('groupPassword');
   const groupComments = $('groupComments');
+  const groupApiKeyExpiration = $('groupApiKeyExpiration');
+  const secretExpiresOn = $('secretExpiresOn');
   const groupNote = $('groupNote');
   const secretError = $('secretError');
   const btnCancelSecret = $('btnCancelSecret');
@@ -93,8 +116,12 @@
   let loginsPage = 1;
   let loginsPageSize = 10;
   let loginsSort = 'name-asc';
+  let apiKeysPage = 1;
+  let apiKeysPageSize = 10;
+  let apiKeysSort = 'name-asc';
   const checkedLogins = new Set();
   const checkedNotes = new Set();
+  const checkedApiKeys = new Set();
 
   // --- Helpers: error display, selection buttons ---
   function showError(el, message) {
@@ -127,6 +154,22 @@
     const btnPrint = $('btnPrintNotes');
     const btnExport = $('btnExportNotes');
     const btnDelete = $('btnDeleteSelectedNotes');
+    [btnPrint, btnExport, btnDelete].forEach((btn) => {
+      if (btn) {
+        btn.hidden = !showBtns;
+        btn.disabled = !enableBtns;
+      }
+    });
+  }
+
+  function updateApiKeysSelectionButtonsVisibility() {
+    const hasItems = secrets.some((s) => s.type === 'apikey');
+    const hasSelection = checkedApiKeys.size > 0;
+    const showBtns = hasItems;
+    const enableBtns = hasSelection;
+    const btnPrint = $('btnPrintApiKeys');
+    const btnExport = $('btnExportApiKeys');
+    const btnDelete = $('btnDeleteSelectedApiKeys');
     [btnPrint, btnExport, btnDelete].forEach((btn) => {
       if (btn) {
         btn.hidden = !showBtns;
@@ -177,12 +220,13 @@
         s.name === undefined || s.name === null || String(s.name).trim() === ''
           ? '—'
           : String(s.name);
+      const d = secretData(s);
       return `<article class="print-login-card">
         <h2 class="print-login-card-title">${escapeHtml(title)}</h2>
-        ${field('URL', s.url)}
-        ${field('Username', s.username)}
-        ${field('Password', s.password)}
-        ${field('Comments', s.comments)}
+        ${field('URL', d.url)}
+        ${field('Username', d.username)}
+        ${field('Password', d.password)}
+        ${field('Comments', d.comments)}
       </article>`;
     };
     const cards = toPrint.map(cardHtml).join('');
@@ -279,7 +323,7 @@
     const rowHtml = (s) =>
       `<tr>
         <td>${escapeHtml(s.name)}</td>
-        <td>${escapeHtml(s.note ?? '—')}</td>
+        <td>${escapeHtml(secretData(s).note ?? '—')}</td>
       </tr>`;
     const allRows = toPrint.map(rowHtml).join('');
     return `
@@ -326,6 +370,60 @@
     const toPrint = secrets.filter((s) => s.type === 'note' && checkedNotes.has(s.id));
     if (toPrint.length === 0) return;
     void printWithSystemDialog(buildPrintNotesDocHtml(toPrint));
+  }
+
+  function getPrintApiKeysHtml(toPrint) {
+    const field = (label, raw) => {
+      const text =
+        raw === undefined || raw === null || String(raw).trim() === '' ? '—' : String(raw);
+      return `<div class="print-login-field">
+        <span class="print-login-label">${escapeHtml(label)}</span>
+        <span class="print-login-value">${escapeHtml(text)}</span>
+      </div>`;
+    };
+    const cardHtml = (s) => {
+      const title =
+        s.name === undefined || s.name === null || String(s.name).trim() === ''
+          ? '—'
+          : String(s.name);
+      const d = secretData(s);
+      const exp = (d.expiresOn || '').trim();
+      let expPrint = '—';
+      if (exp) {
+        const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(exp);
+        expPrint = m
+          ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).toLocaleDateString(undefined, {
+              dateStyle: 'medium',
+            })
+          : exp;
+      }
+      return `<article class="print-login-card">
+        <h2 class="print-login-card-title">${escapeHtml(title)}</h2>
+        ${field('API key', d.key)}
+        ${field('Expiration', expPrint)}
+        ${field('Comments', d.comments)}
+      </article>`;
+    };
+    const cards = toPrint.map(cardHtml).join('');
+    return `
+      <div class="print-cover">
+        <h1 class="print-cover-title">Mimi Desktop</h1>
+        <p class="print-cover-date">${new Date().toLocaleString()}</p>
+        <p class="print-confidential">This document contains confidential API keys. Do not share it with anyone. Store or destroy it securely.</p>
+      </div>
+      <div class="print-login-list">${cards}</div>
+    `;
+  }
+
+  function buildPrintApiKeysDocHtml(toPrint) {
+    const contentHtml = getPrintApiKeysHtml(toPrint);
+    return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Mimi Desktop - API keys</title><style>${PRINT_LOGINS_STYLES}</style></head><body>${contentHtml}</body></html>`;
+  }
+
+  function printSelectedApiKeys() {
+    const toPrint = secrets.filter((s) => s.type === 'apikey' && checkedApiKeys.has(s.id));
+    if (toPrint.length === 0) return;
+    void printWithSystemDialog(buildPrintApiKeysDocHtml(toPrint));
   }
 
   function togglePasswordVisibility(inputEl, btnEl) {
@@ -459,7 +557,7 @@
       if (unlockPasswordStrength) unlockPasswordStrength.hidden = true;
     } else {
       unlockTitle.textContent = 'Create your master password';
-      unlockHint.textContent = 'Choose a strong password. You\'ll use it to unlock Mimi Desktop and protect your notes and logins.';
+      unlockHint.textContent = 'Choose a strong password. You\'ll use it to unlock Mimi Desktop and protect your notes, logins, and API keys.';
       btnUnlock.textContent = 'Create password';
       unlockFooter.textContent = 'Your data is encrypted on this device. If you forget this password, it cannot be recovered.';
       unlockFooter.hidden = false;
@@ -472,6 +570,7 @@
       secrets = await window.vault.getSecrets();
       renderNotesList();
       renderLoginsList();
+      renderApiKeysList();
     } catch (err) {
       showError(unlockError, err.message);
     }
@@ -481,14 +580,27 @@
   function filterByQuery(list, query) {
     const q = (query || '').trim().toLowerCase();
     if (!q) return list;
-    return list.filter(
-      (s) =>
-        s.name.toLowerCase().includes(q) ||
-        (s.username && s.username.toLowerCase().includes(q)) ||
-        (s.url && s.url.toLowerCase().includes(q)) ||
-        (s.comments && s.comments.toLowerCase().includes(q)) ||
-        (s.note && s.note.toLowerCase().includes(q))
-    );
+    return list.filter((s) => {
+      if (s.name.toLowerCase().includes(q)) return true;
+      const d = secretData(s);
+      if (s.type === 'password') {
+        return (
+          (d.username && String(d.username).toLowerCase().includes(q)) ||
+          (d.url && String(d.url).toLowerCase().includes(q)) ||
+          (d.comments && String(d.comments).toLowerCase().includes(q))
+        );
+      }
+      if (s.type === 'note') {
+        return d.note && String(d.note).toLowerCase().includes(q);
+      }
+      if (s.type === 'apikey') {
+        return (
+          (d.comments && String(d.comments).toLowerCase().includes(q)) ||
+          (d.expiresOn && String(d.expiresOn).toLowerCase().includes(q))
+        );
+      }
+      return false;
+    });
   }
 
   function sortSecrets(list, sortKey) {
@@ -517,6 +629,26 @@
         arr.sort((a, b) => nameCmp(a, b));
     }
     return arr;
+  }
+
+  /** API key list row: optional expiration line (calendar date YYYY-MM-DD, end of local day). */
+  function apiKeyExpirationDisplay(secret) {
+    if (secret.type !== 'apikey') return '';
+    const raw = (secretData(secret).expiresOn || '').trim();
+    if (!raw) return '';
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+    if (!m) {
+      return `<span class="secret-expiry">${escapeHtml(`Expires ${raw}`)}</span>`;
+    }
+    const y = Number(m[1]);
+    const mo = Number(m[2]) - 1;
+    const d = Number(m[3]);
+    const endLocal = new Date(y, mo, d, 23, 59, 59, 999).getTime();
+    const displayDate = new Date(y, mo, d).toLocaleDateString(undefined, { dateStyle: 'medium' });
+    const expired = Date.now() > endLocal;
+    const cls = expired ? 'secret-expiry secret-expiry-expired' : 'secret-expiry';
+    const text = expired ? `Expired · ${displayDate}` : `Expires ${displayDate}`;
+    return `<span class="${cls}">${escapeHtml(text)}</span>`;
   }
 
   const iconCopy = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
@@ -548,12 +680,23 @@
     const li = document.createElement('li');
     li.className = 'secret-item';
     li.setAttribute('role', 'listitem');
-    const subtitle = secret.type === 'password' && secret.username ? escapeHtml(secret.username) : escapeHtml(secret.type);
+    const typeSubtitle =
+      secret.type === 'password'
+        ? 'login'
+        : secret.type === 'apikey'
+          ? 'API key'
+          : secret.type === 'note'
+            ? 'note'
+            : escapeHtml(secret.type);
+    const d = secretData(secret);
+    const subtitle =
+      secret.type === 'password' && d.username ? escapeHtml(d.username) : typeSubtitle;
     const isLogin = secret.type === 'password';
-    const showCheckbox = opts.showCheckbox && (isLogin || secret.type === 'note');
+    const isApiKey = secret.type === 'apikey';
+    const showCheckbox = opts.showCheckbox && (isLogin || isApiKey || secret.type === 'note');
     const checked = showCheckbox && opts.isChecked?.(secret.id);
-    const copyBtn = isLogin
-      ? `<button type="button" class="btn btn-ghost btn-icon btn-item-action" data-action="copy" data-id="${escapeHtml(secret.id)}" title="Copy password" aria-label="Copy password">${iconCopy}</button>`
+    const copyBtn = isLogin || isApiKey
+      ? `<button type="button" class="btn btn-ghost btn-icon btn-item-action" data-action="copy" data-id="${escapeHtml(secret.id)}" title="${isApiKey ? 'Copy API key' : 'Copy password'}" aria-label="${isApiKey ? 'Copy API key' : 'Copy password'}">${iconCopy}</button>`
       : '';
     const checkbox = showCheckbox
       ? `<input type="checkbox" class="secret-checkbox" data-id="${escapeHtml(secret.id)}" ${checked ? 'checked' : ''} aria-label="Select ${escapeHtml(secret.name)}">`
@@ -562,7 +705,7 @@
       ${checkbox ? `<div class="secret-item-checkbox">${checkbox}</div>` : ''}
       <div class="meta">
         <div class="name">${escapeHtml(secret.name)}</div>
-        <div class="type">${subtitle}</div>
+        <div class="type">${subtitle}${isApiKey ? apiKeyExpirationDisplay(secret) : ''}</div>
       </div>
       <div class="actions">
         ${copyBtn}
@@ -592,11 +735,12 @@
       e.stopPropagation();
       confirmDelete(secret);
     });
-    if (isLogin) {
+    if (isLogin || isApiKey) {
       const copyBtnEl = li.querySelector('[data-action="copy"]');
       copyBtnEl.addEventListener('click', (e) => {
         e.stopPropagation();
-        copyToClipboard(secret.password || '', copyBtnEl);
+        const value = isLogin ? d.password || '' : d.key || '';
+        copyToClipboard(value, copyBtnEl);
       });
     }
     listEl.appendChild(li);
@@ -680,17 +824,63 @@
     }
   }
 
+  function renderApiKeysList() {
+    const apiKeys = secrets.filter((s) => s.type === 'apikey');
+    const query = searchApiKeys ? searchApiKeys.value : '';
+    const filtered = sortSecrets(filterByQuery(apiKeys, query), apiKeysSort);
+    const total = filtered.length;
+    const totalPages = Math.max(1, Math.ceil(total / apiKeysPageSize));
+    apiKeysPage = Math.min(apiKeysPage, totalPages);
+    const start = (apiKeysPage - 1) * apiKeysPageSize;
+    const pageItems = filtered.slice(start, start + apiKeysPageSize);
+
+    if (apiKeysCount) {
+      apiKeysCount.textContent = `${total} API key${total !== 1 ? 's' : ''}`;
+    }
+    if (apiKeysList) {
+      apiKeysList.innerHTML = '';
+      pageItems.forEach((secret) =>
+        renderSecretItem(secret, apiKeysList, {
+          showCheckbox: true,
+          isChecked: (id) => checkedApiKeys.has(id),
+          onCheck: (id, checked) => {
+            if (checked) checkedApiKeys.add(id);
+            else checkedApiKeys.delete(id);
+            updateApiKeysSelectionButtonsVisibility();
+          },
+        })
+      );
+    }
+    if (emptyApiKeys) emptyApiKeys.hidden = total > 0;
+
+    updateApiKeysSelectionButtonsVisibility();
+
+    const apiKeysPagination = $('apiKeysPagination');
+    const apiKeysPageInfo = $('apiKeysPageInfo');
+    const apiKeysPrevPage = $('apiKeysPrevPage');
+    const apiKeysNextPage = $('apiKeysNextPage');
+    if (apiKeysPagination) {
+      apiKeysPagination.hidden = total <= apiKeysPageSize;
+      if (apiKeysPageInfo) apiKeysPageInfo.textContent = total > 0 ? `Page ${apiKeysPage} of ${totalPages}` : '';
+      if (apiKeysPrevPage) apiKeysPrevPage.disabled = apiKeysPage <= 1;
+      if (apiKeysNextPage) apiKeysNextPage.disabled = apiKeysPage >= totalPages;
+    }
+  }
+
   // --- Tabs: notes / logins / options ---
   async function setTab(tab) {
     activeTab = tab;
     tabNotes.setAttribute('aria-selected', tab === 'notes');
     tabLogins.setAttribute('aria-selected', tab === 'logins');
+    if (tabApiKeys) tabApiKeys.setAttribute('aria-selected', tab === 'apiKeys');
     tabOptions.setAttribute('aria-selected', tab === 'options');
     panelNotes.hidden = tab !== 'notes';
     panelLogins.hidden = tab !== 'logins';
+    if (panelApiKeys) panelApiKeys.hidden = tab !== 'apiKeys';
     panelOptions.hidden = tab !== 'options';
     if (tab === 'options') {
       await refreshDataPath();
+      await refreshVaultFormatInfo();
       const theme = await window.vault.getTheme();
       applyTheme(theme);
       const minutes = await window.vault.getIdleLockMinutes();
@@ -714,9 +904,44 @@
     const type = secretType.value;
     groupUrl.hidden = type !== 'password';
     groupUsername.hidden = type !== 'password';
-    groupPassword.hidden = type !== 'password';
-    groupComments.hidden = type !== 'password';
+    groupPassword.hidden = type !== 'password' && type !== 'apikey';
+    if (groupApiKeyExpiration) {
+      groupApiKeyExpiration.hidden = type !== 'apikey';
+    }
+    groupComments.hidden = type !== 'password' && type !== 'apikey';
     groupNote.hidden = type !== 'note';
+    if (secretNameLabel) {
+      secretNameLabel.textContent = type === 'apikey' ? 'Title' : 'Name';
+    }
+    if (secretPasswordLabel) {
+      secretPasswordLabel.textContent = type === 'apikey' ? 'API key' : 'Password';
+    }
+    const copyPwdBtn = $('copyPassword');
+    if (copyPwdBtn) {
+      const pwdLabel = copyPwdBtn.getAttribute('data-copy-label-password') || 'Copy password';
+      const keyLabel = copyPwdBtn.getAttribute('data-copy-label-apikey') || 'Copy API key';
+      if (type === 'apikey') {
+        copyPwdBtn.setAttribute('title', keyLabel);
+        copyPwdBtn.setAttribute('aria-label', keyLabel);
+      } else {
+        copyPwdBtn.setAttribute('title', pwdLabel);
+        copyPwdBtn.setAttribute('aria-label', pwdLabel);
+      }
+    }
+    if (btnGeneratePassword) {
+      btnGeneratePassword.hidden = type === 'apikey';
+    }
+    if (secretName) {
+      secretName.placeholder =
+        type === 'apikey' ? 'e.g. OpenAI production' : type === 'note' ? 'e.g. Meeting notes' : 'e.g. Gmail';
+    }
+    if (secretPassword) {
+      secretPassword.placeholder = type === 'apikey' ? 'Paste or type the key' : 'Optional';
+    }
+    if (secretComments) {
+      secretComments.placeholder =
+        type === 'apikey' ? 'Optional context (service, rotation, etc.)' : 'Optional notes about this login';
+    }
   }
 
   function openCreate(presetType) {
@@ -724,10 +949,18 @@
     secretId.value = '';
     secretForm.reset();
     secretId.value = '';
-    secretType.value = presetType === 'note' ? 'note' : 'password';
+    secretType.value =
+      presetType === 'note' ? 'note' : presetType === 'apikey' ? 'apikey' : 'password';
     toggleSecretFormByType();
     showError(secretError, '');
-    $$('#dialogTitle', secretDialog).textContent = presetType === 'note' ? 'New note' : presetType === 'password' ? 'New login' : 'New secret';
+    $$('#dialogTitle', secretDialog).textContent =
+      presetType === 'note'
+        ? 'New note'
+        : presetType === 'password'
+          ? 'New login'
+          : presetType === 'apikey'
+            ? 'New API key'
+            : 'New secret';
     secretDialog.showModal();
   }
 
@@ -736,11 +969,16 @@
     secretId.value = secret.id;
     secretName.value = secret.name;
     secretType.value = secret.type;
-    secretUrl.value = secret.url || '';
-    secretUsername.value = secret.username || '';
-    secretPassword.value = secret.password || '';
-    secretComments.value = secret.comments || '';
-    secretNote.value = secret.note || '';
+    const d = secretData(secret);
+    secretUrl.value = d.url || '';
+    secretUsername.value = d.username || '';
+    secretPassword.value = secret.type === 'apikey' ? d.key || '' : d.password || '';
+    secretComments.value = d.comments || '';
+    secretNote.value = d.note || '';
+    if (secretExpiresOn) {
+      secretExpiresOn.value =
+        secret.type === 'apikey' && d.expiresOn ? String(d.expiresOn).trim() : '';
+    }
     toggleSecretFormByType();
     showError(secretError, '');
     $$('#dialogTitle', secretDialog).textContent = 'Edit secret';
@@ -822,12 +1060,14 @@
   let pendingDeleteSecret = null;
   let pendingDeleteLoginIds = null;
   let pendingDeleteNoteIds = null;
+  let pendingDeleteApiKeyIds = null;
   const confirmDeleteDialogTitle = $('confirmDeleteDialogTitle');
 
   function openConfirmDelete(secret) {
     pendingDeleteSecret = secret;
     pendingDeleteLoginIds = null;
     pendingDeleteNoteIds = null;
+    pendingDeleteApiKeyIds = null;
     if (confirmDeleteDialogTitle) confirmDeleteDialogTitle.textContent = 'Delete secret';
     confirmDeleteMessage.textContent = `Are you sure you want to delete "${secret.name}"? This cannot be undone.`;
     confirmDeleteDialog.showModal();
@@ -839,6 +1079,7 @@
     pendingDeleteSecret = null;
     pendingDeleteLoginIds = ids;
     pendingDeleteNoteIds = null;
+    pendingDeleteApiKeyIds = null;
     const n = ids.length;
     if (confirmDeleteDialogTitle) confirmDeleteDialogTitle.textContent = 'Delete selected logins';
     confirmDeleteMessage.textContent = `Delete ${n} selected login${n !== 1 ? 's' : ''}? This cannot be undone.`;
@@ -851,18 +1092,34 @@
     pendingDeleteSecret = null;
     pendingDeleteLoginIds = null;
     pendingDeleteNoteIds = ids;
+    pendingDeleteApiKeyIds = null;
     const n = ids.length;
     if (confirmDeleteDialogTitle) confirmDeleteDialogTitle.textContent = 'Delete selected notes';
     confirmDeleteMessage.textContent = `Delete ${n} selected note${n !== 1 ? 's' : ''}? This cannot be undone.`;
     confirmDeleteDialog.showModal();
   }
 
+  function openConfirmDeleteSelectedApiKeys() {
+    const ids = Array.from(checkedApiKeys);
+    if (ids.length === 0) return;
+    pendingDeleteSecret = null;
+    pendingDeleteLoginIds = null;
+    pendingDeleteNoteIds = null;
+    pendingDeleteApiKeyIds = ids;
+    const n = ids.length;
+    if (confirmDeleteDialogTitle) confirmDeleteDialogTitle.textContent = 'Delete selected API keys';
+    confirmDeleteMessage.textContent = `Delete ${n} selected API key${n !== 1 ? 's' : ''}? This cannot be undone.`;
+    confirmDeleteDialog.showModal();
+  }
+
   async function doConfirmDelete() {
     const loginIds = pendingDeleteLoginIds;
     const noteIds = pendingDeleteNoteIds;
+    const apiKeyIds = pendingDeleteApiKeyIds;
     const secret = pendingDeleteSecret;
     pendingDeleteLoginIds = null;
     pendingDeleteNoteIds = null;
+    pendingDeleteApiKeyIds = null;
     pendingDeleteSecret = null;
     confirmDeleteDialog.close();
     if (loginIds && loginIds.length > 0) {
@@ -891,6 +1148,19 @@
       }
       return;
     }
+    if (apiKeyIds && apiKeyIds.length > 0) {
+      try {
+        for (const id of apiKeyIds) {
+          await window.vault.deleteSecret(id);
+        }
+        checkedApiKeys.clear();
+        await loadSecrets();
+        updateApiKeysSelectionButtonsVisibility();
+      } catch (err) {
+        showError(unlockError, err.message);
+      }
+      return;
+    }
     if (!secret) return;
     try {
       await window.vault.deleteSecret(secret.id);
@@ -908,7 +1178,8 @@
   /** Merge imported login into existing: non-empty imported fields override; comments concatenated only when different (avoids duplication on re-import). */
   function mergeLogin(existing, imported) {
     const pick = (a, b) => (b != null && String(b).trim() !== '' ? String(b).trim() : (a || ''));
-    const existingComments = (existing.comments || '').trim();
+    const ex = secretData(existing);
+    const existingComments = (ex.comments || '').trim();
     const importedComments = (imported.comments || '').trim();
     let comments;
     if (existingComments && importedComments) {
@@ -922,9 +1193,9 @@
     }
     return {
       name: pick(existing.name, imported.name),
-      url: pick(existing.url, imported.url),
-      username: pick(existing.username, imported.username),
-      password: pick(existing.password, imported.password),
+      url: pick(ex.url, imported.url),
+      username: pick(ex.username, imported.username),
+      password: pick(ex.password, imported.password),
       comments,
     };
   }
@@ -932,7 +1203,7 @@
   function findExistingLogin(login) {
     const norm = (u) => (u || '').trim().toLowerCase();
     const nameMatch = (s) => (s.name || '').trim().toLowerCase() === norm(login.name);
-    const urlMatch = (s) => norm(s.url) === norm(login.url);
+    const urlMatch = (s) => norm(secretData(s).url) === norm(login.url);
     return secrets.find((s) => s.type === 'password' && nameMatch(s) && urlMatch(s));
   }
 
@@ -959,7 +1230,9 @@
       const result =
         type === 'logins'
           ? await window.vault.exportLogins(toExport, password)
-          : await window.vault.exportNotes(toExport, password);
+          : type === 'apiKeys'
+            ? await window.vault.exportApiKeys(toExport, password)
+            : await window.vault.exportNotes(toExport, password);
       if (result.success && result.path) {
         showError(unlockError, '');
       }
@@ -972,6 +1245,12 @@
     const toExport = secrets.filter((s) => s.type === 'password' && checkedLogins.has(s.id));
     if (toExport.length === 0) return;
     showExportWarningDialog(toExport, 'logins');
+  }
+
+  async function exportSelectedApiKeys() {
+    const toExport = secrets.filter((s) => s.type === 'apikey' && checkedApiKeys.has(s.id));
+    if (toExport.length === 0) return;
+    showExportWarningDialog(toExport, 'apiKeys');
   }
 
   let pendingImportNew = [];
@@ -988,7 +1267,9 @@
     $('importPasswordDialogMessage').textContent =
       type === 'logins'
         ? 'This logins export file is password protected. Enter the password to import.'
-        : 'This notes export file is password protected. Enter the password to import.';
+        : type === 'apiKeys'
+          ? 'This API keys export file is password protected. Enter the password to import.'
+          : 'This notes export file is password protected. Enter the password to import.';
     $('importPasswordDialog').showModal();
   }
 
@@ -1007,7 +1288,9 @@
       const result =
         type === 'logins'
           ? await window.vault.importLoginsWithPassword(filePath, password)
-          : await window.vault.importNotesWithPassword(filePath, password);
+          : type === 'apiKeys'
+            ? await window.vault.importApiKeysWithPassword(filePath, password)
+            : await window.vault.importNotesWithPassword(filePath, password);
       if (!result.success) {
         pendingImportPassword = { filePath, type };
         $('importPasswordInput').value = '';
@@ -1018,6 +1301,8 @@
       }
       if (type === 'logins') {
         applyImportResult(result.logins, [], 'logins');
+      } else if (type === 'apiKeys') {
+        applyApiKeysImportResult(result.apiKeys, [], 'apiKeys');
       } else {
         applyNotesImportResult(result.notes, [], 'notes');
       }
@@ -1039,6 +1324,56 @@
     pendingImportConflicts = conflictsList;
     if (newLogins.length > 0) applyImport(newLogins, []).catch((e) => showError(unlockError, e.message));
     if (conflictsList.length > 0) openImportConflictDialog();
+  }
+
+  function applyApiKeysImportResult(apiKeys, conflicts, source) {
+    if (source !== 'apiKeys') return;
+    const newKeys = [];
+    const conflictsList = [];
+    for (const row of apiKeys) {
+      const existing = findExistingApiKey(row);
+      if (existing) conflictsList.push({ imported: row, existing });
+      else newKeys.push(row);
+    }
+    pendingImportApiKeysNew = newKeys;
+    pendingImportApiKeysConflicts = conflictsList;
+    if (newKeys.length > 0) applyImportApiKeys(newKeys, []).catch((e) => showError(unlockError, e.message));
+    if (conflictsList.length > 0) openImportApiKeyConflictDialog();
+  }
+
+  /** Merge imported API key into existing: non-empty imported fields override; comments merged like logins. */
+  function mergeApiKey(existing, imported) {
+    const pick = (a, b) => (b != null && String(b).trim() !== '' ? String(b).trim() : (a || ''));
+    const ex = secretData(existing);
+    const existingComments = (ex.comments || '').trim();
+    const importedComments = (imported.comments || '').trim();
+    let comments;
+    if (existingComments && importedComments) {
+      if (
+        existingComments === importedComments ||
+        existingComments.includes(importedComments) ||
+        importedComments.includes(existingComments)
+      ) {
+        comments = existingComments.length >= importedComments.length ? existingComments : importedComments;
+      } else {
+        comments = `${existingComments}\n${importedComments}`;
+      }
+    } else {
+      comments = pick(existingComments, importedComments);
+    }
+    const importedKey = imported.key ?? imported.password ?? '';
+    return {
+      name: pick(existing.name, imported.name),
+      password: pick(ex.key ?? '', importedKey),
+      comments,
+      expiresOn: pick(ex.expiresOn ?? '', imported.expiresOn ?? ''),
+    };
+  }
+
+  function findExistingApiKey(row) {
+    const norm = (n) => (n || '').trim().toLowerCase();
+    const name = norm(row.name);
+    return secrets.find((s) => s.type === 'apikey' && norm(s.name) === name);
   }
 
   function applyNotesImportResult(notes, conflicts, source) {
@@ -1160,7 +1495,8 @@
   /** Merge imported note into existing: non-empty name from imported; note content concatenated only when different (avoids duplication on re-import). */
   function mergeNote(existing, imported) {
     const pick = (a, b) => (b != null && String(b).trim() !== '' ? String(b).trim() : (a || ''));
-    const existingNote = (existing.note || '').trim();
+    const ex = secretData(existing);
+    const existingNote = (ex.note || '').trim();
     const importedNote = (imported.note || '').trim();
     let note;
     if (existingNote && importedNote) {
@@ -1192,6 +1528,8 @@
 
   let pendingImportNotesNew = [];
   let pendingImportNotesConflicts = [];
+  let pendingImportApiKeysNew = [];
+  let pendingImportApiKeysConflicts = [];
 
   function showImportTypeMismatchWarning(message) {
     const msgEl = $('importTypeMismatchMessage');
@@ -1274,6 +1612,102 @@
       await loadSecrets();
       setTab('notes');
       showError(unlockError, '');
+    } catch (err) {
+      showError(unlockError, err.message || 'Import failed');
+    }
+  }
+
+  function openImportApiKeyConflictDialog() {
+    const listEl = $('importApiKeyConflictList');
+    if (!listEl) return;
+    listEl.innerHTML = '';
+    pendingImportApiKeysConflicts.forEach(({ imported, existing }) => {
+      const li = document.createElement('li');
+      li.className = 'import-conflict-item';
+      const inputId = `import-apikey-merge-${existing.id}`;
+      li.innerHTML = `
+        <label class="import-conflict-label">
+          <input type="checkbox" id="${inputId}" data-existing-id="${escapeHtml(existing.id)}">
+          <span class="import-conflict-name">${escapeHtml(imported.name)}</span>
+        </label>
+      `;
+      listEl.appendChild(li);
+    });
+    $('importApiKeyConflictDialog').showModal();
+  }
+
+  async function applyImportApiKeys(newRows, merges) {
+    try {
+      for (const row of newRows) {
+        await window.vault.createSecret({
+          name: row.name,
+          type: 'apikey',
+          password: row.password || '',
+          comments: row.comments || '',
+          expiresOn: typeof row.expiresOn === 'string' ? row.expiresOn : '',
+        });
+      }
+      for (const { imported, existing } of merges) {
+        const merged = mergeApiKey(existing, imported);
+        await window.vault.updateSecret(existing.id, merged);
+      }
+      await loadSecrets();
+      setTab('apiKeys');
+      showError(unlockError, '');
+    } catch (err) {
+      showError(unlockError, err.message || 'Import failed');
+    }
+  }
+
+  async function doApplyImportApiKeyConflict() {
+    const listEl = $('importApiKeyConflictList');
+    const toMerge = [];
+    listEl?.querySelectorAll('input[type="checkbox"]:checked').forEach((cb) => {
+      const existingId = cb.getAttribute('data-existing-id');
+      const conflict = pendingImportApiKeysConflicts.find((c) => c.existing.id === existingId);
+      if (conflict) toMerge.push(conflict);
+    });
+    await applyImportApiKeys([], toMerge);
+    pendingImportApiKeysNew = [];
+    pendingImportApiKeysConflicts = [];
+    $('importApiKeyConflictDialog')?.close();
+  }
+
+  async function importApiKeys() {
+    try {
+      const result = await window.vault.importApiKeys();
+      if (result.needsPassword && result.filePath) {
+        showImportPasswordDialog(result.filePath, 'apiKeys');
+        return;
+      }
+      if (!result.success) {
+        if (result.errorCode === 'WRONG_EXPORT_TYPE') {
+          showImportTypeMismatchWarning(result.error);
+        } else if (result.error) {
+          showError(unlockError, result.error);
+        }
+        return;
+      }
+      showError(unlockError, '');
+      const imported = result.apiKeys || [];
+      const newRows = [];
+      const conflicts = [];
+      for (const row of imported) {
+        const existing = findExistingApiKey(row);
+        if (existing) {
+          conflicts.push({ imported: row, existing });
+        } else {
+          newRows.push(row);
+        }
+      }
+      pendingImportApiKeysNew = newRows;
+      pendingImportApiKeysConflicts = conflicts;
+      if (newRows.length > 0) {
+        await applyImportApiKeys(newRows, []);
+      }
+      if (conflicts.length > 0) {
+        openImportApiKeyConflictDialog();
+      }
     } catch (err) {
       showError(unlockError, err.message || 'Import failed');
     }
@@ -1486,6 +1920,11 @@
       comments: secretComments?.value?.trim() ?? '',
       note: secretNote.value.trim(),
     };
+    if (secretType.value === 'apikey') {
+      payload.key = secretPassword.value;
+      delete payload.password;
+      payload.expiresOn = (secretExpiresOn?.value ?? '').trim();
+    }
     try {
       if (editingId) {
         await window.vault.updateSecret(editingId, payload);
@@ -1527,6 +1966,9 @@
     await window.vault.lock();
     setScreen(false);
     secrets = [];
+    checkedLogins.clear();
+    checkedNotes.clear();
+    checkedApiKeys.clear();
   }
 
   function openChangePassword() {
@@ -1578,7 +2020,7 @@
     const aboutVersion = $('aboutVersion');
     const aboutCopyright = $('aboutCopyright');
     aboutTitle.textContent = data.name || 'Mimi Desktop';
-    aboutVersion.textContent = `Version ${data.version || '1.0.1'}`;
+    aboutVersion.textContent = `Version ${data.version || '1.0.2'}`;
     aboutCopyright.textContent = `Copyright © 2002 - ${new Date().getFullYear()} by CodeGator. All rights reserved`;
     if (data.iconDataUrl) {
       aboutIcon.src = data.iconDataUrl;
@@ -1621,6 +2063,29 @@
     const dir = await window.vault.getDataDirectory();
     dataPathDisplay.textContent = dir || '—';
   }
+
+  async function refreshVaultFormatInfo() {
+    const envelopeEl = $('vaultFileEnvelopeVersion');
+    const payloadEl = $('vaultPayloadSerializationVersion');
+    if (!envelopeEl || !payloadEl) return;
+    try {
+      const envelope = await window.vault.getFileEnvelopeVersion();
+      if (envelope == null) {
+        envelopeEl.textContent =
+          'File wrapper: no vault.enc yet at the current data location (created when you create or unlock a vault).';
+      } else {
+        envelopeEl.textContent = `File wrapper version (the top-level "version" in vault.enc): ${envelope}`;
+      }
+      const payload = await window.vault.getDataFileSerializationVersion();
+      payloadEl.textContent =
+        typeof payload === 'number'
+          ? `Encrypted JSON format (serializationVersion inside the ciphertext): ${payload}`
+          : 'Encrypted JSON format: unlock the vault to read serializationVersion (it is inside the encrypted payload).';
+    } catch {
+      envelopeEl.textContent = '—';
+      payloadEl.textContent = '—';
+    }
+  }
   btnThemeLight.addEventListener('click', async () => {
     await window.vault.setTheme('light');
     applyTheme('light');
@@ -1642,6 +2107,9 @@
       await window.vault.setDataDirectory(selected);
       await refreshDataPath();
       secrets = [];
+      checkedLogins.clear();
+      checkedNotes.clear();
+      checkedApiKeys.clear();
       setScreen(false);
     }
   });
@@ -1727,9 +2195,11 @@
   btnCancelChangePassword.addEventListener('click', () => changePasswordDialog.close());
   tabNotes.addEventListener('click', () => setTab('notes'));
   tabLogins.addEventListener('click', () => setTab('logins'));
+  if (tabApiKeys) tabApiKeys.addEventListener('click', () => setTab('apiKeys'));
   tabOptions.addEventListener('click', () => setTab('options'));
   btnNewNote.addEventListener('click', () => openCreate('note'));
   btnNewLogin.addEventListener('click', () => openCreate('password'));
+  if (btnNewApiKey) btnNewApiKey.addEventListener('click', () => openCreate('apikey'));
   searchNotes.addEventListener('input', () => {
     notesPage = 1;
     renderNotesList();
@@ -1738,6 +2208,12 @@
     loginsPage = 1;
     renderLoginsList();
   });
+  if (searchApiKeys) {
+    searchApiKeys.addEventListener('input', () => {
+      apiKeysPage = 1;
+      renderApiKeysList();
+    });
+  }
   $('notesSort').addEventListener('change', (e) => {
     notesSort = e.target.value;
     notesPage = 1;
@@ -1748,6 +2224,14 @@
     loginsPage = 1;
     renderLoginsList();
   });
+  const apiKeysSortEl = $('apiKeysSort');
+  if (apiKeysSortEl) {
+    apiKeysSortEl.addEventListener('change', (e) => {
+      apiKeysSort = e.target.value;
+      apiKeysPage = 1;
+      renderApiKeysList();
+    });
+  }
   $('notesPageSize').addEventListener('change', (e) => {
     notesPageSize = parseInt(e.target.value, 10);
     notesPage = 1;
@@ -1758,6 +2242,14 @@
     loginsPage = 1;
     renderLoginsList();
   });
+  const apiKeysPageSizeEl = $('apiKeysPageSize');
+  if (apiKeysPageSizeEl) {
+    apiKeysPageSizeEl.addEventListener('change', (e) => {
+      apiKeysPageSize = parseInt(e.target.value, 10);
+      apiKeysPage = 1;
+      renderApiKeysList();
+    });
+  }
   $('btnLoginsSelectAll').addEventListener('click', () => {
     const logins = secrets.filter((s) => s.type === 'password');
     const query = searchLogins ? searchLogins.value : '';
@@ -1829,6 +2321,37 @@
   });
   $('btnPrintNotes').addEventListener('click', printSelectedNotes);
   $('btnDeleteSelectedNotes').addEventListener('click', openConfirmDeleteSelectedNotes);
+  $('btnImportApiKeys')?.addEventListener('click', importApiKeys);
+  $('btnExportApiKeys')?.addEventListener('click', exportSelectedApiKeys);
+  $('btnPrintApiKeys')?.addEventListener('click', printSelectedApiKeys);
+  $('btnDeleteSelectedApiKeys')?.addEventListener('click', openConfirmDeleteSelectedApiKeys);
+  $('btnApiKeysSelectAll')?.addEventListener('click', () => {
+    const keys = secrets.filter((s) => s.type === 'apikey');
+    const query = searchApiKeys ? searchApiKeys.value : '';
+    const filtered = sortSecrets(filterByQuery(keys, query), apiKeysSort);
+    filtered.forEach((s) => checkedApiKeys.add(s.id));
+    renderApiKeysList();
+  });
+  $('btnApiKeysUnselectAll')?.addEventListener('click', () => {
+    checkedApiKeys.clear();
+    renderApiKeysList();
+  });
+  $('apiKeysPrevPage')?.addEventListener('click', () => {
+    if (apiKeysPage > 1) {
+      apiKeysPage--;
+      renderApiKeysList();
+    }
+  });
+  $('apiKeysNextPage')?.addEventListener('click', () => {
+    apiKeysPage++;
+    renderApiKeysList();
+  });
+  $('btnCancelImportApiKeyConflict')?.addEventListener('click', () => {
+    pendingImportApiKeysNew = [];
+    pendingImportApiKeysConflicts = [];
+    $('importApiKeyConflictDialog')?.close();
+  });
+  $('btnApplyImportApiKeyConflict')?.addEventListener('click', doApplyImportApiKeyConflict);
   $('notesPrevPage').addEventListener('click', () => {
     if (notesPage > 1) {
       notesPage--;
@@ -1874,6 +2397,7 @@
     pendingDeleteSecret = null;
     pendingDeleteLoginIds = null;
     pendingDeleteNoteIds = null;
+    pendingDeleteApiKeyIds = null;
     confirmDeleteDialog.close();
   });
   $('btnConfirmDelete').addEventListener('click', doConfirmDelete);
@@ -1881,6 +2405,7 @@
     pendingDeleteSecret = null;
     pendingDeleteLoginIds = null;
     pendingDeleteNoteIds = null;
+    pendingDeleteApiKeyIds = null;
   });
 
   toggleMasterPassword.addEventListener('click', () => togglePasswordVisibility(masterPasswordInput, toggleMasterPassword));

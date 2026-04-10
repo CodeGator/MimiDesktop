@@ -126,23 +126,13 @@ main {
 }
 
 /* Unlock screen */
-.unlock-screen-description {
-  max-width: 360px;
-  margin: 2rem auto 0;
-  padding: 0 1rem;
-  text-align: center;
-  color: var(--text-muted);
-  font-size: 0.95rem;
-  line-height: 1.5;
-}
-
 .unlock-card {
   background: var(--bg-elevated);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 2rem;
   max-width: 360px;
-  margin: 3rem auto 0;
+  margin: 2rem auto 0;
   box-shadow: var(--shadow);
   text-align: left;
 }
@@ -359,13 +349,15 @@ main {
 }
 
 .logins-toolbar-actions .btn,
-.notes-toolbar-actions .btn {
+.notes-toolbar-actions .btn,
+.api-keys-toolbar-actions .btn {
   flex-shrink: 0;
   min-width: 2.25rem;
   min-height: 2.25rem;
 }
 
-.logins-toolbar-filter .search-input {
+.logins-toolbar-filter .search-input,
+.api-keys-toolbar-filter .search-input {
   flex: 1;
   min-width: 0;
 }
@@ -379,6 +371,20 @@ main {
 }
 
 .notes-toolbar-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+/* API keys panel: same two-row toolbar as Logins */
+.api-keys-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.api-keys-toolbar-row {
   display: flex;
   align-items: center;
   gap: 1rem;
@@ -408,6 +414,24 @@ main {
 .secret-count {
   color: var(--text-muted);
   font-size: 0.875rem;
+}
+
+.dialog-hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.secret-expiry {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.secret-expiry-expired {
+  color: var(--error);
+  font-weight: 600;
 }
 
 .select-actions {
@@ -593,6 +617,17 @@ main {
   font-size: 0.875rem;
   color: var(--text-muted);
   line-height: 1.5;
+}
+
+.vault-format-details .options-note {
+  margin-bottom: 0;
+}
+
+.vault-format-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 0.75rem;
 }
 
 .export-security-section {

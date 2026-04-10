@@ -13,10 +13,11 @@ const archiver = require('archiver');
 const extract = require('extract-zip');
 const VaultService = require('./services/VaultService');
 const CryptoService = require('./services/CryptoService');
+const { registerVaultExportImportHandlers } = require('./ipc/vaultExportImportHandlers');
 
 const packageJson = require(path.join(__dirname, '..', '..', 'package.json'));
 const APP_NAME = packageJson.build?.productName || packageJson.name || 'Mimi Desktop';
-const APP_VERSION = packageJson.version || '1.0.1';
+const APP_VERSION = packageJson.version || '1.0.2';
 
 /** @type {BrowserWindow | null} */
 let mainWindow = null;
@@ -46,6 +47,8 @@ const IPC = {
   VAULT_IS_UNLOCKED: 'vault:isUnlocked',
   VAULT_HAS_VAULT: 'vault:hasVault',
   VAULT_GET_SECRETS: 'vault:getSecrets',
+  VAULT_GET_DATA_FILE_SERIALIZATION_VERSION: 'vault:getDataFileSerializationVersion',
+  VAULT_GET_FILE_ENVELOPE_VERSION: 'vault:getFileEnvelopeVersion',
   VAULT_CREATE_SECRET: 'vault:createSecret',
   VAULT_UPDATE_SECRET: 'vault:updateSecret',
   VAULT_DELETE_SECRET: 'vault:deleteSecret',
@@ -64,8 +67,11 @@ const IPC = {
   VAULT_IMPORT_LOGINS: 'vault:importLogins',
   VAULT_EXPORT_NOTES: 'vault:exportNotes',
   VAULT_IMPORT_NOTES: 'vault:importNotes',
+  VAULT_EXPORT_API_KEYS: 'vault:exportApiKeys',
+  VAULT_IMPORT_API_KEYS: 'vault:importApiKeys',
   VAULT_IMPORT_LOGINS_WITH_PASSWORD: 'vault:importLoginsWithPassword',
   VAULT_IMPORT_NOTES_WITH_PASSWORD: 'vault:importNotesWithPassword',
+  VAULT_IMPORT_API_KEYS_WITH_PASSWORD: 'vault:importApiKeysWithPassword',
   VAULT_SELECT_AND_READ_LASTPASS_CSV: 'vault:selectAndReadLastPassCsv',
   APP_SHOW_ABOUT: 'app:showAbout',
   APP_OPEN_EXTERNAL: 'app:openExternal',
@@ -518,6 +524,25 @@ function registerIpcHandlers() {
     return vaultService.getSecrets();
   });
 
+  ipcMain.handle(IPC.VAULT_GET_DATA_FILE_SERIALIZATION_VERSION, () => {
+    if (!vaultService?.isUnlocked()) return null;
+    return vaultService.getVaultDataFileSerializationVersion();
+  });
+
+  /** Top-level `version` in vault.enc (salt + ciphertext wrapper), readable without unlocking. */
+  ipcMain.handle(IPC.VAULT_GET_FILE_ENVELOPE_VERSION, () => {
+    const vaultPath = getVaultPath();
+    if (!fs.existsSync(vaultPath)) return null;
+    try {
+      const header = JSON.parse(fs.readFileSync(vaultPath, 'utf8'));
+      if (!header || typeof header !== 'object') return null;
+      const v = header.version;
+      return typeof v === 'number' && Number.isFinite(v) ? v : 1;
+    } catch {
+      return null;
+    }
+  });
+
   ipcMain.handle(IPC.VAULT_CREATE_SECRET, async (_event, secret) => {
     if (!vaultService?.isUnlocked()) throw new Error('Vault is locked');
     return vaultService.createSecret(secret);
@@ -666,318 +691,17 @@ function registerIpcHandlers() {
       fs.rmSync(tempDir, { recursive: true, force: true });
     }
   });
-
-  const EXPORT_LOGINS_FORMAT = 'mimi-logins-export';
-  const EXPORT_NOTES_FORMAT = 'mimi-notes-export';
-  /** Serialization version for export files. Bump when changing export shape; import rejects higher versions. */
-  const EXPORT_SERIALIZATION_VERSION = 1;
-
-  function validateExportForImport(data, expectedFormat, expectedExportType) {
-    if (!data || typeof data !== 'object') {
-      return { valid: false, error: 'Invalid export file format' };
-    }
-    const format = data.format;
-    const exportType = data.exportType ?? (data.logins ? 'logins' : data.notes ? 'notes' : null);
-    const version = data.serializationVersion ?? data.version;
-    if (format !== expectedFormat) {
-      const fileContains = exportType || (format === EXPORT_NOTES_FORMAT ? 'notes' : format === EXPORT_LOGINS_FORMAT ? 'logins' : null);
-      if (fileContains && fileContains !== expectedExportType) {
-        return {
-          valid: false,
-          error: `This file contains ${fileContains}, but you are importing ${expectedExportType}. Use Import ${fileContains} instead.`,
-          errorCode: 'WRONG_EXPORT_TYPE',
-          fileContains,
-        };
-      }
-      return { valid: false, error: 'Invalid export file format' };
-    }
-    if (exportType != null && exportType !== expectedExportType) {
-      return {
-        valid: false,
-        error: `This file contains ${exportType}, but you are importing ${expectedExportType}. Use Import ${exportType} instead.`,
-        errorCode: 'WRONG_EXPORT_TYPE',
-        fileContains: exportType,
-      };
-    }
-    if (version == null || typeof version !== 'number') {
-      return { valid: false, error: 'Invalid export file format (missing serialization version)' };
-    }
-    if (version > EXPORT_SERIALIZATION_VERSION) {
-      return {
-        valid: false,
-        error: 'This file was created by a newer version of the application. Please upgrade to import it.',
-      };
-    }
-    return { valid: true };
-  }
-
-  const EXPORT_NOTICE = 'Mimi export – sensitive data. Delete after use. Do not store in cloud or shared folders.';
-
-  ipcMain.handle(IPC.VAULT_EXPORT_LOGINS, async (_event, logins, exportPassword = null) => {
-    if (!vaultService?.isUnlocked()) throw new Error('Vault is locked');
-    if (!Array.isArray(logins) || logins.length === 0) throw new Error('No logins selected');
-    const dateStr = new Date().toISOString().slice(0, 10);
-    const defaultName = `logins-export-DELETE-AFTER-USE-${dateStr}.json`;
-    const result = await dialog.showSaveDialog(mainWindow ?? undefined, {
-      title: 'Export logins',
-      defaultPath: path.join(os.homedir(), 'Downloads', defaultName),
-      filters: [{ name: 'JSON files', extensions: ['json'] }],
-    });
-    if (result.canceled || !result.filePath) return { success: false, path: null };
-    const filePath = result.filePath.endsWith('.json') ? result.filePath : `${result.filePath}.json`;
-    const payload = {
-      format: EXPORT_LOGINS_FORMAT,
-      exportType: 'logins',
-      serializationVersion: EXPORT_SERIALIZATION_VERSION,
-      exportedAt: new Date().toISOString(),
-      _notice: EXPORT_NOTICE,
-      logins: logins.map((s) => ({
-        name: s.name ?? '',
-        url: s.url ?? '',
-        username: s.username ?? '',
-        password_b64: Buffer.from(s.password ?? '', 'utf8').toString('base64'),
-        comments: s.comments ?? '',
-      })),
-    };
-    const jsonStr = JSON.stringify(payload, null, 2);
-    if (exportPassword && String(exportPassword).trim()) {
-      const salt = CryptoService.generateSalt();
-      const key = CryptoService.deriveKey(exportPassword, salt);
-      const encrypted = CryptoService.encrypt(key, jsonStr);
-      key.fill(0);
-      const wrapped = {
-        format: EXPORT_LOGINS_FORMAT,
-        exportType: 'logins',
-        serializationVersion: EXPORT_SERIALIZATION_VERSION,
-        encrypted: true,
-        salt_b64: salt.toString('base64'),
-        data_b64: encrypted.toString('base64'),
-      };
-      fs.writeFileSync(filePath, JSON.stringify(wrapped, null, 2), 'utf8');
-    } else {
-      fs.writeFileSync(filePath, jsonStr, 'utf8');
-    }
-    return { success: true, path: filePath };
+  registerVaultExportImportHandlers(ipcMain, {
+    IPC,
+    getVaultService: () => vaultService,
+    getMainWindow: () => mainWindow,
+    CryptoService,
+    fs,
+    path,
+    os,
+    dialog,
   });
 
-  function readAndParseExportFile(filePath) {
-    const raw = fs.readFileSync(filePath, 'utf8');
-    return JSON.parse(raw);
-  }
-
-  function extractLoginsFromData(data) {
-    if (!Array.isArray(data.logins)) return null;
-    return data.logins.map((entry) => ({
-      name: entry.name ?? '',
-      url: entry.url ?? '',
-      username: entry.username ?? '',
-      password: entry.password_b64
-        ? Buffer.from(entry.password_b64, 'base64').toString('utf8')
-        : entry.password ?? '',
-      comments: entry.comments ?? '',
-    }));
-  }
-
-  ipcMain.handle(IPC.VAULT_IMPORT_LOGINS, async () => {
-    if (!vaultService?.isUnlocked()) throw new Error('Vault is locked');
-    const result = await dialog.showOpenDialog(mainWindow ?? undefined, {
-      properties: ['openFile'],
-      title: 'Select logins export file',
-      filters: [{ name: 'JSON files', extensions: ['json'] }],
-    });
-    if (result.canceled || !result.filePaths[0]) return { success: false, error: null, logins: null, needsPassword: false };
-    const filePath = result.filePaths[0];
-    try {
-      const data = readAndParseExportFile(filePath);
-      if (data.encrypted === true) {
-        return { success: false, needsPassword: true, filePath, logins: null };
-      }
-      const validation = validateExportForImport(data, EXPORT_LOGINS_FORMAT, 'logins');
-      if (!validation.valid) {
-        return {
-          success: false,
-          error: validation.error,
-          errorCode: validation.errorCode,
-          logins: null,
-          needsPassword: false,
-        };
-      }
-      const logins = extractLoginsFromData(data);
-      if (!logins) return { success: false, error: 'Invalid export file format', logins: null, needsPassword: false };
-      return { success: true, error: null, logins };
-    } catch (err) {
-      return {
-        success: false,
-        error: err?.message || 'Failed to read file',
-        logins: null,
-        needsPassword: false,
-      };
-    }
-  });
-
-  ipcMain.handle(IPC.VAULT_IMPORT_LOGINS_WITH_PASSWORD, async (_event, filePath, password) => {
-    if (!vaultService?.isUnlocked()) throw new Error('Vault is locked');
-    if (!filePath || !password) return { success: false, error: 'Password required', logins: null };
-    try {
-      const data = readAndParseExportFile(filePath);
-      if (data.encrypted !== true || !data.salt_b64 || !data.data_b64) {
-        return { success: false, error: 'File is not password protected', logins: null };
-      }
-      const salt = Buffer.from(data.salt_b64, 'base64');
-      const key = CryptoService.deriveKey(password, salt);
-      const decrypted = CryptoService.decrypt(key, Buffer.from(data.data_b64, 'base64'));
-      key.fill(0);
-      const inner = JSON.parse(decrypted);
-      const validation = validateExportForImport(inner, EXPORT_LOGINS_FORMAT, 'logins');
-      if (!validation.valid) {
-        return { success: false, error: validation.error || 'Wrong password', logins: null };
-      }
-      const logins = extractLoginsFromData(inner);
-      if (!logins) return { success: false, error: 'Invalid export file format', logins: null };
-      return { success: true, error: null, logins };
-    } catch (err) {
-      return {
-        success: false,
-        error: err?.message || 'Failed to decrypt (wrong password?)',
-        logins: null,
-      };
-    }
-  });
-
-  ipcMain.handle(IPC.VAULT_SELECT_AND_READ_LASTPASS_CSV, async () => {
-    if (!vaultService?.isUnlocked()) throw new Error('Vault is locked');
-    const result = await dialog.showOpenDialog(mainWindow ?? undefined, {
-      properties: ['openFile'],
-      title: 'Select LastPass CSV file',
-      filters: [{ name: 'CSV files', extensions: ['csv'] }],
-    });
-    if (result.canceled || !result.filePaths[0]) return { success: false, error: 'No file selected', content: null };
-    const filePath = result.filePaths[0];
-    try {
-      const content = fs.readFileSync(filePath, 'utf8');
-      return { success: true, content, error: null };
-    } catch (err) {
-      return { success: false, error: err?.message || 'Failed to read file', content: null };
-    }
-  });
-
-  ipcMain.handle(IPC.VAULT_EXPORT_NOTES, async (_event, notes, exportPassword = null) => {
-    if (!vaultService?.isUnlocked()) throw new Error('Vault is locked');
-    if (!Array.isArray(notes) || notes.length === 0) throw new Error('No notes selected');
-    const dateStr = new Date().toISOString().slice(0, 10);
-    const defaultName = `notes-export-DELETE-AFTER-USE-${dateStr}.json`;
-    const result = await dialog.showSaveDialog(mainWindow ?? undefined, {
-      title: 'Export notes',
-      defaultPath: path.join(os.homedir(), 'Downloads', defaultName),
-      filters: [{ name: 'JSON files', extensions: ['json'] }],
-    });
-    if (result.canceled || !result.filePath) return { success: false, path: null };
-    const filePath = result.filePath.endsWith('.json') ? result.filePath : `${result.filePath}.json`;
-    const payload = {
-      format: EXPORT_NOTES_FORMAT,
-      exportType: 'notes',
-      serializationVersion: EXPORT_SERIALIZATION_VERSION,
-      exportedAt: new Date().toISOString(),
-      _notice: EXPORT_NOTICE,
-      notes: notes.map((s) => ({
-        name: s.name ?? '',
-        note: s.note ?? '',
-      })),
-    };
-    const jsonStr = JSON.stringify(payload, null, 2);
-    if (exportPassword && String(exportPassword).trim()) {
-      const salt = CryptoService.generateSalt();
-      const key = CryptoService.deriveKey(exportPassword, salt);
-      const encrypted = CryptoService.encrypt(key, jsonStr);
-      key.fill(0);
-      const wrapped = {
-        format: EXPORT_NOTES_FORMAT,
-        exportType: 'notes',
-        serializationVersion: EXPORT_SERIALIZATION_VERSION,
-        encrypted: true,
-        salt_b64: salt.toString('base64'),
-        data_b64: encrypted.toString('base64'),
-      };
-      fs.writeFileSync(filePath, JSON.stringify(wrapped, null, 2), 'utf8');
-    } else {
-      fs.writeFileSync(filePath, jsonStr, 'utf8');
-    }
-    return { success: true, path: filePath };
-  });
-
-  function extractNotesFromData(data) {
-    if (!Array.isArray(data.notes)) return null;
-    return (data.notes || []).map((entry) => ({
-      name: entry.name ?? '',
-      note: entry.note ?? '',
-    }));
-  }
-
-  ipcMain.handle(IPC.VAULT_IMPORT_NOTES, async () => {
-    if (!vaultService?.isUnlocked()) throw new Error('Vault is locked');
-    const result = await dialog.showOpenDialog(mainWindow ?? undefined, {
-      properties: ['openFile'],
-      title: 'Select notes export file',
-      filters: [{ name: 'JSON files', extensions: ['json'] }],
-    });
-    if (result.canceled || !result.filePaths[0]) return { success: false, error: null, notes: null, needsPassword: false };
-    const filePath = result.filePaths[0];
-    try {
-      const data = readAndParseExportFile(filePath);
-      if (data.encrypted === true) {
-        return { success: false, needsPassword: true, filePath, notes: null };
-      }
-      const validation = validateExportForImport(data, EXPORT_NOTES_FORMAT, 'notes');
-      if (!validation.valid) {
-        return {
-          success: false,
-          error: validation.error,
-          errorCode: validation.errorCode,
-          notes: null,
-          needsPassword: false,
-        };
-      }
-      const notes = extractNotesFromData(data);
-      if (!notes) return { success: false, error: 'Invalid export file format', notes: null, needsPassword: false };
-      return { success: true, error: null, notes };
-    } catch (err) {
-      return {
-        success: false,
-        error: err?.message || 'Failed to read file',
-        notes: null,
-        needsPassword: false,
-      };
-    }
-  });
-
-  ipcMain.handle(IPC.VAULT_IMPORT_NOTES_WITH_PASSWORD, async (_event, filePath, password) => {
-    if (!vaultService?.isUnlocked()) throw new Error('Vault is locked');
-    if (!filePath || !password) return { success: false, error: 'Password required', notes: null };
-    try {
-      const data = readAndParseExportFile(filePath);
-      if (data.encrypted !== true || !data.salt_b64 || !data.data_b64) {
-        return { success: false, error: 'File is not password protected', notes: null };
-      }
-      const salt = Buffer.from(data.salt_b64, 'base64');
-      const key = CryptoService.deriveKey(password, salt);
-      const decrypted = CryptoService.decrypt(key, Buffer.from(data.data_b64, 'base64'));
-      key.fill(0);
-      const inner = JSON.parse(decrypted);
-      const validation = validateExportForImport(inner, EXPORT_NOTES_FORMAT, 'notes');
-      if (!validation.valid) {
-        return { success: false, error: validation.error || 'Wrong password', notes: null };
-      }
-      const notes = extractNotesFromData(inner);
-      if (!notes) return { success: false, error: 'Invalid export file format', notes: null };
-      return { success: true, error: null, notes };
-    } catch (err) {
-      return {
-        success: false,
-        error: err?.message || 'Failed to decrypt (wrong password?)',
-        notes: null,
-      };
-    }
-  });
 
   ipcMain.handle(IPC.VAULT_SET_DATA_DIRECTORY, async (_event, newPath) => {
     if (!newPath || typeof newPath !== 'string') return false;

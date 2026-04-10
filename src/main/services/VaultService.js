@@ -9,38 +9,36 @@ const fs = require('fs').promises;
 const path = require('path');
 const crypto = require('crypto');
 const CryptoService = require('./CryptoService');
+const {
+  SERIALIZATION_VERSION,
+  defaultDataForType,
+  isV2SecretRecord,
+  migrateSecretV1ToV2,
+} = require('./secretPayload');
 
 /** Version of the vault file header (salt + encrypted blob layout). */
 const VAULT_VERSION = 1;
-/** Version of the decrypted payload (secrets structure). Bump when changing payload shape. */
-const SERIALIZATION_VERSION = 1;
 
 /**
- * In-memory representation of a single secret (password or note).
+ * In-memory representation of a single secret (login, API key, or note).
+ * On disk (v2): { id, name, type, createdAt, updatedAt, data } where `data` is type-specific.
  */
 class Secret {
   /**
    * @param {Object} options
    * @param {string} [options.id]
    * @param {string} options.name
-   * @param {'password'|'note'} options.type
-   * @param {string} [options.username]
-   * @param {string} [options.password]
-   * @param {string} [options.url]
-   * @param {string} [options.comments]
-   * @param {string} [options.note]
+   * @param {'password'|'note'|'apikey'} options.type
+   * @param {Object} [options.data] - Type-specific payload (merged with defaults)
    * @param {number} [options.createdAt]
    * @param {number} [options.updatedAt]
    */
-  constructor({ id, name, type, username = '', password = '', url = '', comments = '', note = '', createdAt, updatedAt }) {
+  constructor({ id, name, type, data = {}, createdAt, updatedAt }) {
     this.id = id ?? crypto.randomUUID();
     this.name = name ?? '';
     this.type = type ?? 'password';
-    this.username = username ?? '';
-    this.password = password ?? '';
-    this.url = url ?? '';
-    this.comments = comments ?? '';
-    this.note = note ?? '';
+    const base = defaultDataForType(this.type);
+    this.data = { ...base, ...data };
     const now = Date.now();
     this.createdAt = createdAt ?? now;
     this.updatedAt = updatedAt ?? now;
@@ -54,22 +52,26 @@ class Secret {
       id: this.id,
       name: this.name,
       type: this.type,
-      username: this.username,
-      password: this.password,
-      url: this.url,
-      comments: this.comments,
-      note: this.note,
+      data: { ...this.data },
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
     };
   }
 
   /**
-   * @param {Object} obj - Plain object from JSON/payload
+   * @param {Object} obj - Plain object from JSON/payload (v2 shape, or v1 after migration)
    * @returns {Secret}
    */
   static fromJSON(obj) {
-    return new Secret(obj);
+    const normalized = isV2SecretRecord(obj) ? obj : migrateSecretV1ToV2(obj);
+    return new Secret({
+      id: normalized.id,
+      name: normalized.name,
+      type: normalized.type,
+      data: normalized.data,
+      createdAt: normalized.createdAt,
+      updatedAt: normalized.updatedAt,
+    });
   }
 }
 
@@ -86,6 +88,12 @@ class VaultService {
     this._key = null;
     /** @type {Secret[]} */
     this._secrets = [];
+    /**
+     * `serializationVersion` from the decrypted vault JSON for `vaultPath` (updated on unlock and each save).
+     * Null while locked; cannot be read from disk without the master password.
+     * @type {number | null}
+     */
+    this._vaultDataFileSerializationVersion = null;
   }
 
   /**
@@ -116,7 +124,18 @@ class VaultService {
       if (dataVersion > SERIALIZATION_VERSION) {
         throw new Error('This vault was created by a newer version of the application. Please upgrade to open it.');
       }
-      this._secrets = (payload.secrets ?? []).map((s) => Secret.fromJSON(s));
+      let needsRewrite = false;
+      let secretsRaw = payload.secrets ?? [];
+      if (dataVersion < SERIALIZATION_VERSION) {
+        secretsRaw = secretsRaw.map((s) => migrateSecretV1ToV2(s));
+        needsRewrite = true;
+      }
+      this._secrets = secretsRaw.map((s) => Secret.fromJSON(s));
+      if (needsRewrite) {
+        await this._persist(salt);
+      } else {
+        this._vaultDataFileSerializationVersion = dataVersion;
+      }
       return { created: false };
     } catch (err) {
       if (err.code === 'ENOENT') {
@@ -148,10 +167,20 @@ class VaultService {
     }
     this._key = null;
     this._secrets = [];
+    this._vaultDataFileSerializationVersion = null;
   }
 
   isUnlocked() {
     return this._key !== null;
+  }
+
+  /**
+   * Serialization version stored inside the encrypted vault payload for the current file (same as on disk after last save).
+   * @returns {number | null} null if the vault is locked
+   */
+  getVaultDataFileSerializationVersion() {
+    if (!this._key) return null;
+    return this._vaultDataFileSerializationVersion;
   }
 
   /**
@@ -190,6 +219,7 @@ class VaultService {
       data: data.toString('base64'),
     };
     await fs.writeFile(this.vaultPath, JSON.stringify(header), 'utf8');
+    this._vaultDataFileSerializationVersion = SERIALIZATION_VERSION;
   }
 
   /** @returns {Object[]} Array of plain secret objects for IPC/renderer. */
@@ -199,19 +229,29 @@ class VaultService {
   }
 
   /**
-   * @param {{ name: string, type: 'password'|'note', username?: string, password?: string, url?: string, note?: string }} input
+   * @param {{ name: string, type: 'password'|'note'|'apikey', username?: string, password?: string, url?: string, comments?: string, note?: string, expiresOn?: string, key?: string }} input - Flat IPC shape; mapped into `data`.
    * @returns {Object} Created secret (toJSON)
    */
   createSecret(input) {
     if (!this._key) throw new Error('Vault is locked');
+    const type = input.type ?? 'password';
+    const data = defaultDataForType(type);
+    if (type === 'password') {
+      data.url = input.url ?? '';
+      data.username = input.username ?? '';
+      data.password = input.password ?? '';
+      data.comments = input.comments ?? '';
+    } else if (type === 'note') {
+      data.note = input.note ?? '';
+    } else if (type === 'apikey') {
+      data.key = input.key ?? input.password ?? '';
+      data.comments = input.comments ?? '';
+      data.expiresOn = typeof input.expiresOn === 'string' ? input.expiresOn : '';
+    }
     const secret = new Secret({
       name: input.name ?? '',
-      type: input.type ?? 'password',
-      username: input.username ?? '',
-      password: input.password ?? '',
-      url: input.url ?? '',
-      comments: input.comments ?? '',
-      note: input.note ?? '',
+      type,
+      data,
     });
     this._secrets.push(secret);
     return this._saveAndReturn(secret);
@@ -219,20 +259,35 @@ class VaultService {
 
   /**
    * @param {string} id - Secret id
-   * @param {Object} updates - Fields to update (name, type, username, password, url, comments, note)
+   * @param {Object} updates - Flat fields; applied into `data` according to current `type`.
    * @returns {Promise<Object>} Updated secret (toJSON)
    */
   updateSecret(id, updates) {
     if (!this._key) throw new Error('Vault is locked');
     const secret = this._secrets.find((s) => s.id === id);
     if (!secret) throw new Error('Secret not found');
+    if (updates.type !== undefined && updates.type !== secret.type) {
+      secret.type = updates.type;
+      secret.data = { ...defaultDataForType(secret.type) };
+    } else if (updates.type !== undefined) {
+      secret.type = updates.type;
+    }
     if (updates.name !== undefined) secret.name = updates.name;
-    if (updates.type !== undefined) secret.type = updates.type;
-    if (updates.username !== undefined) secret.username = updates.username;
-    if (updates.password !== undefined) secret.password = updates.password;
-    if (updates.url !== undefined) secret.url = updates.url;
-    if (updates.comments !== undefined) secret.comments = updates.comments;
-    if (updates.note !== undefined) secret.note = updates.note;
+    const t = secret.type;
+    secret.data = { ...defaultDataForType(t), ...secret.data };
+    if (t === 'password') {
+      if (updates.url !== undefined) secret.data.url = updates.url;
+      if (updates.username !== undefined) secret.data.username = updates.username;
+      if (updates.password !== undefined) secret.data.password = updates.password;
+      if (updates.comments !== undefined) secret.data.comments = updates.comments;
+    } else if (t === 'note') {
+      if (updates.note !== undefined) secret.data.note = updates.note;
+    } else if (t === 'apikey') {
+      if (updates.key !== undefined) secret.data.key = updates.key;
+      if (updates.password !== undefined) secret.data.key = updates.password;
+      if (updates.comments !== undefined) secret.data.comments = updates.comments;
+      if (updates.expiresOn !== undefined) secret.data.expiresOn = updates.expiresOn ?? '';
+    }
     secret.updatedAt = Date.now();
     return this._saveAndReturn(secret);
   }
@@ -283,3 +338,5 @@ class VaultService {
 
 module.exports = VaultService;
 module.exports.Secret = Secret;
+module.exports.migrateSecretV1ToV2 = migrateSecretV1ToV2;
+module.exports.SERIALIZATION_VERSION = SERIALIZATION_VERSION;
